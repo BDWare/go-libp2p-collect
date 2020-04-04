@@ -1,0 +1,108 @@
+syntax = "proto3";
+
+package pb;
+
+import "gogoproto/gogo.proto";
+
+option (gogoproto.sizer_all) = true;
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+option (gogoproto.goproto_getters_all) = false;
+
+// Request is the structure transmit in overlay network, to perform a broadcast query.
+message Request {
+    // control is the routing messages.
+    RequestControl control = 1;
+
+    bytes payload = 2;
+}
+
+message RequestControl {
+    // root is the marshaled root node's peer_id 
+    bytes root = 1;
+    // seqno
+    uint64 seqno = 2;
+
+    uint32 hops = 3;
+}
+
+message Intermediate {
+    // sendback decides whether send back to the root node
+    bool sendback = 1;
+    // response payload, which will be assembled into a response
+    // be aware that THIS IS NOT response.marshal() result
+    bytes payload = 2;
+    // Error Message
+    Error error = 3;
+}
+
+message Error {
+    uint32 code = 1;
+    string message = 2;
+}
+
+// Response is the structure transmit in overlay network, to answer a broadcast query.
+message Response {
+    // control is the routing messages.
+    ResponseControl control = 1;
+
+    bytes payload = 2;
+
+    // Error Message
+    Error error = 3;
+}
+
+message ResponseControl {
+    // response related request id.
+    string request_id = 1;
+}
+
+message Responses {
+    repeated Responses responses = 1;
+}
+
+message TopicEvent {
+    TopicEventType type = 1;
+    ReceiveRequestEvent recv_request = 2;
+}
+
+enum TopicEventType {
+    ReceiveRequest = 0;
+    SendResponse = 1;
+}
+
+message ReceiveRequestEvent {
+    Request request = 1;
+    string from = 2;
+}
+
+message SendResponseEvent {
+    Response response = 1;
+    string to = 2;
+}
+
+message PublishEvent {
+    PublishEventType type = 1;
+    BeginListenEvent begin_listen = 2;
+    ReceiveResponseEvent recv_response = 3;
+    StopListenEvent stop_listen = 4;
+}
+
+enum PublishEventType {
+    BeginListen = 0;
+    ReceiveResponse = 1;
+    StopListen = 2;
+}
+
+message BeginListenEvent {
+    string request_id = 1;
+}
+
+message ReceiveResponseEvent {
+    Response response = 1;
+    string from = 2;
+}
+
+message StopListenEvent {
+    string request_id = 1;
+}
