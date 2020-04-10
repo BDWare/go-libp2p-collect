@@ -2,8 +2,9 @@ syntax = "proto3";
 
 package pb;
 
-import "gogoproto/gogo.proto";
+import "gogo.proto";
 
+option go_package="bdware.org/libp2p/go-libp2p-collect/pb";
 option (gogoproto.sizer_all) = true;
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
@@ -12,7 +13,7 @@ option (gogoproto.goproto_getters_all) = false;
 // Request is the structure transmit in overlay network, to perform a broadcast query.
 message Request {
     // control is the routing messages.
-    RequestControl control = 1;
+    RequestControl control = 1 [(gogoproto.nullable) = false];
 
     bytes payload = 2;
 }
@@ -44,7 +45,7 @@ message Error {
 // Response is the structure transmit in overlay network, to answer a broadcast query.
 message Response {
     // control is the routing messages.
-    ResponseControl control = 1;
+    ResponseControl control = 1 [(gogoproto.nullable) = false];
 
     bytes payload = 2;
 
@@ -62,13 +63,12 @@ message Responses {
 }
 
 message TopicEvent {
-    TopicEventType type = 1;
+    enum Type {
+        ReceiveRequest = 0;
+        SendResponse = 1;
+    }
+    Type type = 1;
     ReceiveRequestEvent recv_request = 2;
-}
-
-enum TopicEventType {
-    ReceiveRequest = 0;
-    SendResponse = 1;
 }
 
 message ReceiveRequestEvent {
@@ -81,17 +81,16 @@ message SendResponseEvent {
     string to = 2;
 }
 
-message PublishEvent {
-    PublishEventType type = 1;
+message CollectEvent {
+    enum Type {
+        BeginListen = 0;
+        ReceiveResponse = 1;
+        StopListen = 2;
+    }
+    Type type = 1;
     BeginListenEvent begin_listen = 2;
     ReceiveResponseEvent recv_response = 3;
     StopListenEvent stop_listen = 4;
-}
-
-enum PublishEventType {
-    BeginListen = 0;
-    ReceiveResponse = 1;
-    StopListen = 2;
 }
 
 message BeginListenEvent {
