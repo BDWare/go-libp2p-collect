@@ -6,7 +6,6 @@ import (
 
 	host "github.com/libp2p/go-libp2p-core/host"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
-	"github.com/libp2p/go-libp2p-core/peer"
 )
 
 // TopicHandle is the handle function of subscription.
@@ -19,7 +18,6 @@ type Topics struct {
 	item      map[string]topicitem
 	pubs      *pubsub.PubSub
 	host      host.Host
-	self 		peer.ID
 	selfNotif bool
 }
 
@@ -72,11 +70,6 @@ func NewTopics(h host.Host, opts ...TopicOpt) (top *Topics, err error) {
 		if err == nil {
 			err = opt(t)
 		}
-	}
-
-	// if self is not set, use host.ID()
-	if err == nil && t.self == "" {
-		t.self = t.host.ID()
 	}
 
 	// if pubs is not set, use the default initialization
@@ -230,7 +223,7 @@ func (t *Topics) forwardTopic(ctx context.Context, sub *pubsub.Subscription, top
 		}
 
 		if err == nil {
-			if msg.ReceivedFrom != t.self || t.selfNotif {
+			if msg.ReceivedFrom != t.host.ID() || t.selfNotif {
 				go f(topic, msg.Data)
 			}
 		} else {
