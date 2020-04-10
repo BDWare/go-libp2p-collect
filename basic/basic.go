@@ -113,7 +113,7 @@ func (bpsc *BasicPubSubCollector) Publish(topic string, payload []byte, opts ...
 	if err == nil {
 		seq := atomic.AddUint64(&(bpsc.seqno), 1)
 		req := &pb.Request{
-			Control: &pb.RequestControl{
+			Control: pb.RequestControl{
 				Root:  root,
 				Seqno: seq,
 			},
@@ -207,7 +207,7 @@ func (bpsc *BasicPubSubCollector) topicHandle(topic string, data []byte) {
 
 		// assemble the response
 		resp = &pb.Response{
-			Control: &pb.ResponseControl{
+			Control: pb.ResponseControl{
 				RequestId: rqID,
 			},
 			Payload: rqresult.Payload,
