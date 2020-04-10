@@ -5,8 +5,8 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"bdware.org/libp2p/go-libp2p-collect/pb"
 	"bdware.org/libp2p/go-libp2p-collect/apsub"
+	"bdware.org/libp2p/go-libp2p-collect/pb"
 	host "github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/protocol"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
@@ -60,6 +60,7 @@ func checkConf(conf *Conf) (inner innerConf, err error) {
 	return
 }
 
+// WithConf specifies configuration of basic pubsubcollector
 func WithConf(conf *Conf) Option {
 	return func(bpsc *BasicPubSubCollector) error {
 		inner, err := checkConf(conf)
@@ -82,7 +83,8 @@ func defaultReqIDGenerator() ReqIDGenerator {
 	}
 }
 
-func WithRequestIdGenerator() Option {
+// WithRequestIDGenerator .
+func WithRequestIDGenerator() Option {
 	panic("unimplement")
 }
 
