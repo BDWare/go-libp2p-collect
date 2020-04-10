@@ -11,11 +11,11 @@ import (
 // TopicHandle is the handle function of subscription.
 type TopicHandle func(topic string, data []byte)
 
-// Topics encapsulates pubsub, provides async methods to get subscribe messages.
-// Topics also manages the joined topics
-type Topics struct {
+// AsyncPubSub encapsulates pubsub, provides async methods to get subscribe messages.
+// AsyncPubSub also manages the joined topics
+type AsyncPubSub struct {
 	lock      sync.RWMutex
-	item      map[string]topicitem
+	items     map[string]topicitem
 	pubs      *pubsub.PubSub
 	host      host.Host
 	selfNotif bool
@@ -31,14 +31,14 @@ type topicitem struct {
 }
 
 // TopicOpt is the option in NewTopics
-type TopicOpt func(*Topics) error
+type TopicOpt func(*AsyncPubSub) error
 
 // PubSubFactory initializes a pubsub in Topics
 type PubSubFactory func(h host.Host) (*pubsub.PubSub, error)
 
 // WithCustomPubSubFactory initials the pubsub based on given factory
 func WithCustomPubSubFactory(psubFact PubSubFactory) TopicOpt {
-	return func(t *Topics) (err error) {
+	return func(t *AsyncPubSub) (err error) {
 		psub, err := psubFact(t.host)
 		if err == nil {
 			t.pubs = psub
@@ -51,7 +51,7 @@ func WithCustomPubSubFactory(psubFact PubSubFactory) TopicOpt {
 // If WithSelfNotif is set to true, the node will receive messages published by itself.
 // Default is set to false.
 func WithSelfNotif(enable bool) TopicOpt {
-	return func(t *Topics) (err error) {
+	return func(t *AsyncPubSub) (err error) {
 		t.selfNotif = enable
 		return
 	}
@@ -59,10 +59,10 @@ func WithSelfNotif(enable bool) TopicOpt {
 
 // NewTopics returns a new Topics instance.
 // If WithCustomPubSubFactory is not set, a default randomsub will be used.
-func NewTopics(h host.Host, opts ...TopicOpt) (top *Topics, err error) {
-	t := &Topics{
+func NewTopics(h host.Host, opts ...TopicOpt) (top *AsyncPubSub, err error) {
+	t := &AsyncPubSub{
 		lock:      sync.RWMutex{},
-		item:      make(map[string]topicitem),
+		items:     make(map[string]topicitem),
 		host:      h,
 		selfNotif: false,
 	}
@@ -84,18 +84,18 @@ func NewTopics(h host.Host, opts ...TopicOpt) (top *Topics, err error) {
 }
 
 // Close the topics
-func (t *Topics) Close() error {
+func (t *AsyncPubSub) Close() error {
 	defer t.lock.Unlock()
 	/*_*/ t.lock.Lock()
 
-	for k := range t.item {
+	for k := range t.items {
 		t.unsubscribe(k)
 	}
 	return nil
 }
 
 // Publish a message with given topic
-func (t *Topics) Publish(ctx context.Context, topic string, data []byte) (err error) {
+func (t *AsyncPubSub) Publish(ctx context.Context, topic string, data []byte) (err error) {
 	var ok bool
 	if err == nil {
 		ok, err = t.fastPublish(ctx, topic, data)
@@ -106,33 +106,33 @@ func (t *Topics) Publish(ctx context.Context, topic string, data []byte) (err er
 	return
 }
 
-func (t *Topics) fastPublish(ctx context.Context, topic string, data []byte) (ok bool, err error) {
+func (t *AsyncPubSub) fastPublish(ctx context.Context, topic string, data []byte) (ok bool, err error) {
 	defer t.lock.RUnlock()
 	/*_*/ t.lock.RLock()
 
 	var it topicitem
-	it, ok = t.item[topic]
+	it, ok = t.items[topic]
 	if ok {
 		err = it.topic.Publish(ctx, data)
 	}
 	return
 }
 
-func (t *Topics) slowPublish(ctx context.Context, topic string, data []byte) (err error) {
+func (t *AsyncPubSub) slowPublish(ctx context.Context, topic string, data []byte) (err error) {
 	defer t.lock.Unlock()
 	/*_*/ t.lock.Lock()
 
 	var ok bool
 	var it topicitem
 	if err == nil {
-		it, ok = t.item[topic]
+		it, ok = t.items[topic]
 	}
 
 	if err == nil && !ok {
 		it.topic, err = t.pubs.Join(topic)
 		if err == nil {
 			it.name = topic
-			t.item[topic] = it
+			t.items[topic] = it
 		}
 	}
 
@@ -145,11 +145,11 @@ func (t *Topics) slowPublish(ctx context.Context, topic string, data []byte) (er
 
 // Subscribe a topic
 // Subscribe a same topic is ok.
-func (t *Topics) Subscribe(topic string, handle TopicHandle) (err error) {
+func (t *AsyncPubSub) Subscribe(topic string, handle TopicHandle) (err error) {
 	defer t.lock.Unlock()
 	/*_*/ t.lock.Lock()
 
-	it, ok := t.item[topic]
+	it, ok := t.items[topic]
 	if ok {
 		// Close topic doesn't work here, use subscription cancel instead.
 		if it.subcancel != nil {
@@ -181,7 +181,7 @@ func (t *Topics) Subscribe(topic string, handle TopicHandle) (err error) {
 		ctx, it.ctxcancel = context.WithCancel(ctx)
 		it.name = topic
 
-		t.item[topic] = it
+		t.items[topic] = it
 		go t.forwardTopic(ctx, sub, topic, handle)
 	}
 
@@ -189,14 +189,14 @@ func (t *Topics) Subscribe(topic string, handle TopicHandle) (err error) {
 }
 
 // Unsubscribe the given topic
-func (t *Topics) Unsubscribe(topic string) (err error) {
+func (t *AsyncPubSub) Unsubscribe(topic string) (err error) {
 	defer t.lock.Unlock()
 	/*_*/ t.lock.Lock()
 	return t.unsubscribe(topic)
 }
 
-func (t *Topics) unsubscribe(topic string) (err error) {
-	it, ok := t.item[topic]
+func (t *AsyncPubSub) unsubscribe(topic string) (err error) {
+	it, ok := t.items[topic]
 	if ok {
 		if it.subcancel != nil {
 			it.subcancel()
@@ -210,12 +210,12 @@ func (t *Topics) unsubscribe(topic string) (err error) {
 			err = it.topic.Close()
 		}
 
-		delete(t.item, topic)
+		delete(t.items, topic)
 	}
 	return
 }
 
-func (t *Topics) forwardTopic(ctx context.Context, sub *pubsub.Subscription, topic string, f TopicHandle) {
+func (t *AsyncPubSub) forwardTopic(ctx context.Context, sub *pubsub.Subscription, topic string, f TopicHandle) {
 	for {
 		msg, err := sub.Next(ctx)
 		if err == nil {

@@ -9,8 +9,8 @@ import (
 	"sync/atomic"
 
 	psc "bdware.org/libp2p/go-libp2p-collect"
-	"bdware.org/libp2p/go-libp2p-collect/pb"
 	"bdware.org/libp2p/go-libp2p-collect/apsub"
+	"bdware.org/libp2p/go-libp2p-collect/pb"
 	lru "github.com/hashicorp/golang-lru"
 	host "github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
@@ -29,7 +29,7 @@ type BasicPubSubCollector struct {
 
 	host host.Host
 	// a wrapper of apsub system
-	top *apsub.Topics
+	apubsub *apsub.AsyncPubSub
 
 	thandles *topicHandlers
 	// requestCache is a cache of requests.
@@ -43,7 +43,7 @@ type BasicPubSubCollector struct {
 // NewBasicPubSubCollector returns a new BasicPubSubCollector
 func NewBasicPubSubCollector(h host.Host, opts ...Option) (bpsc *BasicPubSubCollector, err error) {
 	var (
-		top *apsub.Topics
+		top *apsub.AsyncPubSub
 	)
 	bpsc = &BasicPubSubCollector{
 		conf:  newDefaultInnerConf(),
@@ -73,7 +73,7 @@ func NewBasicPubSubCollector(h host.Host, opts ...Option) (bpsc *BasicPubSubColl
 		)
 	}
 	if err == nil {
-		bpsc.top = top
+		bpsc.apubsub = top
 
 		// initialize requestcache
 		bpsc.rcache, err = newRequestCache(bpsc.conf.RequestBufSize)
@@ -89,7 +89,7 @@ func (bpsc *BasicPubSubCollector) Join(topic string, opts ...psc.JoinOpt) (err e
 
 	// subscribe the topic
 	if err == nil {
-		err = bpsc.top.Subscribe(topic, bpsc.topicHandle)
+		err = bpsc.apubsub.Subscribe(topic, bpsc.topicHandle)
 	}
 
 	// register request handler
@@ -137,7 +137,7 @@ func (bpsc *BasicPubSubCollector) Publish(topic string, payload []byte, opts ...
 		bpsc.host.SetStreamHandler(bpsc.conf.ResponseProtocol, bpsc.streamHandler)
 
 		//  publish marshaled request
-		err = bpsc.top.Publish(options.RequestContext, topic, tosend)
+		err = bpsc.apubsub.Publish(options.RequestContext, topic, tosend)
 
 		// delete reqItem when options.Ctx expires
 		go func() {
@@ -153,7 +153,7 @@ func (bpsc *BasicPubSubCollector) Publish(topic string, payload []byte, opts ...
 // Leave the overlay.
 // The registered topichandles and responseHandlers will be closed.
 func (bpsc *BasicPubSubCollector) Leave(topic string) (err error) {
-	err = bpsc.top.Unsubscribe(topic)
+	err = bpsc.apubsub.Unsubscribe(topic)
 	bpsc.thandles.delReqHandler(topic)
 	bpsc.rcache.removeTopic(topic)
 	return
@@ -163,7 +163,7 @@ func (bpsc *BasicPubSubCollector) Leave(topic string) (err error) {
 func (bpsc *BasicPubSubCollector) Close() error {
 	bpsc.thandles.removeAll()
 	bpsc.rcache.removeAll()
-	return bpsc.top.Close()
+	return bpsc.apubsub.Close()
 }
 
 // topicHandle will be called when a request arrived.
