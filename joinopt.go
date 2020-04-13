@@ -7,16 +7,16 @@ import (
 )
 
 // JoinOpt is optional options in PubSubCollector.Join
-type JoinOpt func(*JoinOptions) error
+type JoinOpt func(*JoinOpts) error
 
-// JoinOptions is the aggregated options
-type JoinOptions struct {
+// JoinOpts is the aggregated options
+type JoinOpts struct {
 	RequestHandler
 }
 
 // NewJoinOptions returns an option collection
-func NewJoinOptions(opts []JoinOpt) (out *JoinOptions) {
-	out = &JoinOptions{}
+func NewJoinOptions(opts []JoinOpt) (out *JoinOpts) {
+	out = &JoinOpts{}
 	for _, opt := range opts {
 		opt(out)
 	}
@@ -39,7 +39,7 @@ type RequestHandler func(ctx context.Context, req *pb.Request) *pb.Intermediate
 
 // WithRequestHandler registers request handler
 func WithRequestHandler(rqhandle RequestHandler) JoinOpt {
-	return func(opts *JoinOptions) error {
+	return func(opts *JoinOpts) error {
 		opts.RequestHandler = rqhandle
 		return nil
 	}

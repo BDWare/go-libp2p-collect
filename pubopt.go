@@ -7,18 +7,18 @@ import (
 )
 
 // PubOpt is optional options in PubSubCollector.Publish
-type PubOpt func(*PublishOptions) error
+type PubOpt func(*PubOpts) error
 
-// PublishOptions is the aggregated options
-type PublishOptions struct {
+// PubOpts is the aggregated options
+type PubOpts struct {
 	RequestContext context.Context
 	RecvRespHandle RecvRespHandler
 	Cancel         func()
 }
 
 // NewPublishOptions returns an option collection
-func NewPublishOptions(opts []PubOpt) (out *PublishOptions) {
-	out = &PublishOptions{}
+func NewPublishOptions(opts []PubOpt) (out *PubOpts) {
+	out = &PubOpts{}
 	for _, opt := range opts {
 		opt(out)
 	}
@@ -39,7 +39,7 @@ type RecvRespHandler func(rp *pb.Response)
 
 // WithRecvRespHandler registers notifHandler
 func WithRecvRespHandler(notifhandle RecvRespHandler) PubOpt {
-	return func(pubopts *PublishOptions) error {
+	return func(pubopts *PubOpts) error {
 		pubopts.RecvRespHandle = notifhandle
 		return nil
 	}
@@ -48,7 +48,7 @@ func WithRecvRespHandler(notifhandle RecvRespHandler) PubOpt {
 // WithRequestContext adds cancellation or timeout for a request
 // default is withCancel. (ctx will be cancelled when request is closed)
 func WithRequestContext(ctx context.Context) PubOpt {
-	return func(pubopts *PublishOptions) error {
+	return func(pubopts *PubOpts) error {
 		pubopts.RequestContext, pubopts.Cancel = context.WithCancel(ctx)
 		return nil
 	}

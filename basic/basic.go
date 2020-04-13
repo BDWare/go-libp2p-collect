@@ -105,7 +105,7 @@ func (bpsc *BasicPubSubCollector) Publish(topic string, payload []byte, opts ...
 	var (
 		root    []byte
 		rqID    string
-		options *psc.PublishOptions
+		options *psc.PubOpts
 		tosend  []byte
 	)
 	// assemble the request struct
