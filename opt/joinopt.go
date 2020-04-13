@@ -15,18 +15,18 @@ type JoinOpts struct {
 }
 
 // NewJoinOptions returns an option collection
-func NewJoinOptions(opts []JoinOpt) (out *JoinOpts) {
-	out = &JoinOpts{}
-	for _, opt := range opts {
-		opt(out)
-	}
-	//set default value
-	if out.RequestHandler == nil {
-		out.RequestHandler = func(context.Context, *pb.Request) *pb.Intermediate {
+func NewJoinOptions(opts []JoinOpt) (out *JoinOpts, err error) {
+	out = &JoinOpts{
+		RequestHandler: func(context.Context, *pb.Request) *pb.Intermediate {
 			return &pb.Intermediate{
 				Sendback: false,
 				Payload:  []byte{},
 			}
+		},
+	}
+	for _, opt := range opts {
+		if err == nil {
+			err = opt(out)
 		}
 	}
 	return

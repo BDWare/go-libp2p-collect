@@ -4,8 +4,8 @@ import (
 	"context"
 	"sync"
 
+	pubsub "bdware.org/libp2p/go-libp2p-pubsub"
 	host "github.com/libp2p/go-libp2p-core/host"
-	pubsub "github.com/libp2p/go-libp2p-pubsub"
 )
 
 // TopicHandle is the handle function of subscription.

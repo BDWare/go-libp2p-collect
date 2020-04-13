@@ -12,10 +12,12 @@ import (
 	"bdware.org/libp2p/go-libp2p-collect/apsub"
 	"bdware.org/libp2p/go-libp2p-collect/opt"
 	"bdware.org/libp2p/go-libp2p-collect/pb"
+	pubsub "bdware.org/libp2p/go-libp2p-pubsub"
 	lru "github.com/hashicorp/golang-lru"
-	host "github.com/libp2p/go-libp2p-core/host"
+	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p-core/protocol"
 )
 
 // BasicPubSubCollector implements of psc.BasicPubSubCollector Interface.
@@ -43,42 +45,54 @@ type BasicPubSubCollector struct {
 
 // NewBasicPubSubCollector returns a new BasicPubSubCollector
 func NewBasicPubSubCollector(h host.Host, opts ...Option) (bpsc *BasicPubSubCollector, err error) {
+
 	var (
-		top *apsub.AsyncPubSub
+		initopts *opt.InitOpts
+		conf     innerConf
+		apubsub  *apsub.AsyncPubSub
+		thandles *topicHandlers
+		rcache   *requestCache
 	)
-	bpsc = &BasicPubSubCollector{
-		conf:  newDefaultInnerConf(),
-		seqno: rand.Uint64(),
-		host:  h,
-		// top: top,
-		// top's initialization should be put off, for we need to know request protocol
-		thandles: newTopicHandlers(),
-		// requestCache:    newRequestCache(),
-		// initialize requestCache later
-		ridgen: defaultReqIDGenerator(),
-	}
-	//apply opts
-	for _, opt := range opts {
-		if err == nil {
-			err = opt(bpsc)
-		}
+	{
+		initopts, err = opt.NewInitOpts(opts)
 	}
 	if err == nil {
-		// initialize apsub
-		top, err = apsub.NewTopics(
+		conf, err = checkOptConfAndGetInnerConf(initopts.Conf)
+	}
+	if err == nil {
+		apubsub, err = apsub.NewTopics(
 			h,
 			apsub.WithSelfNotif(true),
 			apsub.WithCustomPubSubFactory(
-				newPubsubFactoryWithProtocol(bpsc.conf.RequestProtocol),
-			),
+				func(h host.Host) (*pubsub.PubSub, error) {
+					return pubsub.NewRandomSub(
+						// TODO: add context in initopts
+						context.TODO(),
+						h,
+						// we do the pubsub with conf.RequestProtocol
+						pubsub.WithCustomProtocols([]protocol.ID{conf.RequestProtocol}),
+					)
+				}),
 		)
 	}
 	if err == nil {
-		bpsc.apubsub = top
-
-		// initialize requestcache
-		bpsc.rcache, err = newRequestCache(bpsc.conf.RequestBufSize)
+		rcache, err = newRequestCache(conf.RequestBufSize)
 	}
+	if err == nil {
+		thandles = newTopicHandlers()
+	}
+	if err == nil {
+		bpsc = &BasicPubSubCollector{
+			conf:     conf,
+			seqno:    rand.Uint64(),
+			host:     h,
+			apubsub:  apubsub,
+			thandles: thandles,
+			rcache:   rcache,
+			ridgen:   initopts.IDGenerator,
+		}
+	}
+
 	return
 }
 
@@ -86,8 +100,10 @@ func NewBasicPubSubCollector(h host.Host, opts ...Option) (bpsc *BasicPubSubColl
 // Join the same topic is allowed here.
 // Rejoin will refresh the requestHandler.
 func (bpsc *BasicPubSubCollector) Join(topic string, opts ...psc.JoinOpt) (err error) {
-	options := opt.NewJoinOptions(opts)
-
+	var options *opt.JoinOpts
+	{
+		options, err = opt.NewJoinOptions(opts)
+	}
 	// subscribe the topic
 	if err == nil {
 		err = bpsc.apubsub.Subscribe(topic, bpsc.topicHandle)
@@ -398,4 +414,31 @@ func (rc *requestCache) removeTopic(topic string) {
 
 func (rc *requestCache) removeAll() {
 	rc.Cache.Purge()
+}
+
+// Option is type alias
+type Option = opt.InitOpt
+
+// ReqIDGenerator is type alias
+type ReqIDGenerator = opt.ReqIDGenerator
+
+type innerConf struct {
+	RequestProtocol  protocol.ID
+	ResponseProtocol protocol.ID
+	RequestBufSize   int
+}
+
+func checkOptConfAndGetInnerConf(conf *opt.Conf) (inner innerConf, err error) {
+	if conf.ProtocolPrefix == "" {
+		err = fmt.Errorf("unexpected nil Prefix")
+	}
+	if conf.RequestBufSize < 0 {
+		err = fmt.Errorf("unexpected negetive RequestBufSize")
+	}
+	if err == nil {
+		inner.RequestProtocol = protocol.ID(conf.ProtocolPrefix + "/request")
+		inner.ResponseProtocol = protocol.ID(conf.ProtocolPrefix + "/response")
+		inner.RequestBufSize = conf.RequestBufSize
+	}
+	return
 }
