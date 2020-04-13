@@ -41,3 +41,31 @@ func TestSendAndRecv(t *testing.T) {
 	case <-okch:
 	}
 }
+
+func TestUnlink(t *testing.T) {
+	mnet := mock.NewMockNet()
+	send, err := mnet.NewConnectedPeer()
+	assert.NoError(t, err)
+	recv, err := mnet.NewConnectedPeer()
+	assert.NoError(t, err)
+	protoc := protocol.ID("test-protocol")
+	recv.SetStreamHandler(protoc, func(s network.Stream) {
+		t.Fatal("unexpected call of handler")
+	})
+
+	// wait for connections open
+	time.Sleep(100 * time.Millisecond)
+
+	// remove links and conns between send and recv
+	err = mnet.DisconnectPeers(send.ID(), recv.ID())
+	assert.NoError(t, err)
+	err = mnet.UnlinkPeers(send.ID(), recv.ID())
+	assert.NoError(t, err)
+
+	// time to wait for disconnection
+	time.Sleep(100 * time.Millisecond)
+
+	s, err := send.NewStream(context.Background(), recv.ID(), protoc)
+	assert.NotNil(t, err)
+	assert.Nil(t, s)
+}
