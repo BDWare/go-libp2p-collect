@@ -1,4 +1,4 @@
-package collect
+package opt
 
 import (
 	"context"

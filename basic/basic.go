@@ -10,6 +10,7 @@ import (
 
 	psc "bdware.org/libp2p/go-libp2p-collect"
 	"bdware.org/libp2p/go-libp2p-collect/apsub"
+	"bdware.org/libp2p/go-libp2p-collect/opt"
 	"bdware.org/libp2p/go-libp2p-collect/pb"
 	lru "github.com/hashicorp/golang-lru"
 	host "github.com/libp2p/go-libp2p-core/host"
@@ -85,7 +86,7 @@ func NewBasicPubSubCollector(h host.Host, opts ...Option) (bpsc *BasicPubSubColl
 // Join the same topic is allowed here.
 // Rejoin will refresh the requestHandler.
 func (bpsc *BasicPubSubCollector) Join(topic string, opts ...psc.JoinOpt) (err error) {
-	options := psc.NewJoinOptions(opts)
+	options := opt.NewJoinOptions(opts)
 
 	// subscribe the topic
 	if err == nil {
@@ -124,7 +125,7 @@ func (bpsc *BasicPubSubCollector) Publish(topic string, payload []byte, opts ...
 		tosend, err = req.Marshal()
 	}
 	if err == nil {
-		options = psc.NewPublishOptions(opts)
+		options = opt.NewPublishOptions(opts)
 
 		// register notif handler
 		bpsc.rcache.addReqItem(rqID, reqItem{
