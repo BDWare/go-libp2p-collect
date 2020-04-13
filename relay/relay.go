@@ -1,7 +1,7 @@
 package relaypsc
 
 import (
-	psc "bdware.org/libp2p/go-libp2p-collect"
+	"bdware.org/libp2p/go-libp2p-collect/opt"
 	pubsub "bdware.org/libp2p/go-libp2p-pubsub"
 	pb "bdware.org/libp2p/go-libp2p-pubsub/pb"
 	host "github.com/libp2p/go-libp2p-core/host"
@@ -13,7 +13,7 @@ type RelayPubSubCollector struct {
 }
 
 // NewRelayPubSubCollector .
-func NewRelayPubSubCollector(h host.Host, opts ...Option) (r *RelayPubSubCollector, err error) {
+func NewRelayPubSubCollector(h host.Host, opts ...opt.InitOpt) (r *RelayPubSubCollector, err error) {
 	// TODO: add lifetime control for randomSub
 
 	return
@@ -21,12 +21,12 @@ func NewRelayPubSubCollector(h host.Host, opts ...Option) (r *RelayPubSubCollect
 
 // Join the overlay network defined by topic.
 // Register RequestHandle and ResponseHandle in opts.
-func (r *RelayPubSubCollector) Join(topic string, opts ...psc.JoinOpt) error {
+func (r *RelayPubSubCollector) Join(topic string, opts ...opt.JoinOpt) error {
 	panic("not implemented")
 }
 
 // Publish a serialized request. Request should be encasulated in data argument.
-func (r *RelayPubSubCollector) Publish(topic string, data []byte, opts ...psc.PubOpt) error {
+func (r *RelayPubSubCollector) Publish(topic string, data []byte, opts ...opt.PubOpt) error {
 	panic("not implemented")
 }
 
@@ -40,5 +40,3 @@ type tracer RelayPubSubCollector
 func (t *tracer) Trace(evt *pb.TraceEvent) {
 
 }
-
-type Option struct{}
