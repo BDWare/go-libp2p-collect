@@ -12,8 +12,8 @@ import (
 	"bdware.org/libp2p/go-libp2p-collect/apsub"
 	"bdware.org/libp2p/go-libp2p-collect/opt"
 	"bdware.org/libp2p/go-libp2p-collect/pb"
+	rc "bdware.org/libp2p/go-libp2p-collect/rcache"
 	pubsub "bdware.org/libp2p/go-libp2p-pubsub"
-	lru "github.com/hashicorp/golang-lru"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -35,11 +35,11 @@ type BasicPubSubCollector struct {
 	apubsub *apsub.AsyncPubSub
 
 	thandles *topicHandlers
-	// requestCache is a cache of requests.
+	// RequestCache is a cache of requests.
 	// We don't know when there is no incoming response for a certain request.
 	// We have to eliminate the out-dated request resource.
 	// After elimination, the response related to this request will be ignored.
-	rcache *requestCache
+	rcache *rc.RequestCache
 	ridgen ReqIDGenerator
 }
 
@@ -51,7 +51,7 @@ func NewBasicPubSubCollector(h host.Host, opts ...Option) (bpsc *BasicPubSubColl
 		conf     innerConf
 		apubsub  *apsub.AsyncPubSub
 		thandles *topicHandlers
-		rcache   *requestCache
+		rcache   *rc.RequestCache
 	)
 	{
 		initopts, err = opt.NewInitOpts(opts)
@@ -76,7 +76,7 @@ func NewBasicPubSubCollector(h host.Host, opts ...Option) (bpsc *BasicPubSubColl
 		)
 	}
 	if err == nil {
-		rcache, err = newRequestCache(conf.RequestBufSize)
+		rcache, err = rc.NewRequestCache(conf.RequestBufSize)
 	}
 	if err == nil {
 		thandles = newTopicHandlers()
@@ -144,10 +144,10 @@ func (bpsc *BasicPubSubCollector) Publish(topic string, payload []byte, opts ...
 		options = opt.NewPublishOptions(opts)
 
 		// register notif handler
-		bpsc.rcache.addReqItem(rqID, reqItem{
-			recvRecvHandle: options.RecvRespHandle,
-			topic:          topic,
-			cancel:         options.Cancel,
+		bpsc.rcache.AddReqItem(rqID, &rc.ReqItem{
+			RecvRecvHandle: options.RecvRespHandle,
+			Topic:          topic,
+			Cancel:         options.Cancel,
 		})
 
 		// add stream handler when responses return
@@ -160,7 +160,7 @@ func (bpsc *BasicPubSubCollector) Publish(topic string, payload []byte, opts ...
 		go func() {
 			select {
 			case <-options.RequestContext.Done():
-				bpsc.rcache.removeReqItem(rqID)
+				bpsc.rcache.RemoveReqItem(rqID)
 			}
 		}()
 	}
@@ -172,14 +172,14 @@ func (bpsc *BasicPubSubCollector) Publish(topic string, payload []byte, opts ...
 func (bpsc *BasicPubSubCollector) Leave(topic string) (err error) {
 	err = bpsc.apubsub.Unsubscribe(topic)
 	bpsc.thandles.delReqHandler(topic)
-	bpsc.rcache.removeTopic(topic)
+	bpsc.rcache.RemoveTopic(topic)
 	return
 }
 
 // Close the BasicPubSubCollector.
 func (bpsc *BasicPubSubCollector) Close() error {
 	bpsc.thandles.removeAll()
-	bpsc.rcache.removeAll()
+	bpsc.rcache.RemoveAll()
 	return bpsc.apubsub.Close()
 }
 
@@ -243,12 +243,12 @@ func (bpsc *BasicPubSubCollector) topicHandle(topic string, data []byte) {
 
 		// send payload
 		ctx, cc := context.WithCancel(context.Background())
-		bpsc.rcache.addReqItem(rqID, reqItem{
-			topic:  topic,
-			cancel: cc,
+		bpsc.rcache.AddReqItem(rqID, &rc.ReqItem{
+			Topic:  topic,
+			Cancel: cc,
 		})
 		// clean up later
-		defer bpsc.rcache.removeReqItem(rqID)
+		defer bpsc.rcache.RemoveReqItem(rqID)
 		s, err = bpsc.host.NewStream(ctx, rootID, bpsc.conf.ResponseProtocol)
 
 	}
@@ -295,7 +295,7 @@ func (bpsc *BasicPubSubCollector) handleResponseBytes(respBytes []byte) (err err
 func (bpsc *BasicPubSubCollector) handleResponse(resp *pb.Response) (err error) {
 	var (
 		reqID   string
-		reqItem reqItem
+		reqItem *rc.ReqItem
 		ok      bool
 	)
 	if resp == nil {
@@ -303,13 +303,13 @@ func (bpsc *BasicPubSubCollector) handleResponse(resp *pb.Response) (err error) 
 	}
 	if err == nil {
 		reqID = resp.Control.RequestId
-		reqItem, ok = bpsc.rcache.getReqItem(reqID)
+		reqItem, ok = bpsc.rcache.GetReqItem(reqID)
 		if !ok {
 			err = fmt.Errorf("cannot find reqitem for request %s", reqID)
 		}
 	}
 	if err == nil {
-		reqItem.recvRecvHandle(resp)
+		reqItem.RecvRecvHandle(resp)
 	}
 	return err
 }
@@ -359,61 +359,6 @@ func (td *topicHandlers) removeAll() {
 	for k := range td.handlers {
 		delete(td.handlers, k)
 	}
-}
-
-type requestCache struct {
-	Cache *lru.Cache
-}
-
-type reqItem struct {
-	recvRecvHandle psc.RecvRespHandler
-	topic          string
-	cancel         func()
-}
-
-// callback when a request is evicted.
-func onEvict(key interface{}, value interface{}) {
-	// cancel context
-	item := value.(reqItem)
-	item.cancel()
-	// TODO: add logging
-}
-
-func newRequestCache(size int) (*requestCache, error) {
-	l, err := lru.NewWithEvict(size, onEvict)
-	return &requestCache{
-		Cache: l,
-	}, err
-}
-
-func (rc *requestCache) addReqItem(reqid string, reqItem reqItem) {
-	rc.Cache.Add(reqid, reqItem)
-}
-
-func (rc *requestCache) removeReqItem(reqid string) {
-	rc.Cache.Remove(reqid)
-}
-
-func (rc *requestCache) getReqItem(reqid string) (out reqItem, ok bool) {
-	var v interface{}
-	v, ok = rc.Cache.Get(reqid)
-	out, ok = v.(reqItem)
-	return
-}
-
-func (rc *requestCache) removeTopic(topic string) {
-	for _, k := range rc.Cache.Keys() {
-		if v, ok := rc.Cache.Peek(k); ok {
-			item := v.(reqItem)
-			if item.topic == topic {
-				rc.Cache.Remove(k)
-			}
-		}
-	}
-}
-
-func (rc *requestCache) removeAll() {
-	rc.Cache.Purge()
 }
 
 // Option is type alias
