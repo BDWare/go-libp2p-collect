@@ -12,17 +12,13 @@ type JoinOpt func(*JoinOpts) error
 // JoinOpts is the aggregated options
 type JoinOpts struct {
 	RequestHandler
+	ResponseHandler
 }
 
 // NewJoinOptions returns an option collection
 func NewJoinOptions(opts []JoinOpt) (out *JoinOpts, err error) {
 	out = &JoinOpts{
-		RequestHandler: func(context.Context, *pb.Request) *pb.Intermediate {
-			return &pb.Intermediate{
-				Sendback: false,
-				Payload:  []byte{},
-			}
-		},
+		RequestHandler: defaultRequestHandler,
 	}
 	for _, opt := range opts {
 		if err == nil {
@@ -48,4 +44,23 @@ func WithRequestHandler(rqhandle RequestHandler) JoinOpt {
 // WithRequestCacheSize .
 func WithRequestCacheSize(n uint) JoinOpt {
 	panic("not implemented")
+}
+
+func defaultRequestHandler(context.Context, *pb.Request) *pb.Intermediate {
+	return &pb.Intermediate{
+		Sendback: false,
+		Payload:  []byte{},
+	}
+}
+
+// ResponseHandler is the callback when a node receive a response.
+// the sendback in Intermediate will decide whether the response will be sent back to the root.
+type ResponseHandler func(context.Context, *pb.Response) *pb.Intermediate
+
+// WithResponseHandler registers response handler
+func WithResponseHandler(handler ResponseHandler) JoinOpt {
+	return func(opts *JoinOpts) error {
+		opts.ResponseHandler = handler
+		return nil
+	}
 }
