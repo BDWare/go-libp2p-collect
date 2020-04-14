@@ -11,9 +11,9 @@ type PubOpt func(*PubOpts) error
 
 // PubOpts is the aggregated options
 type PubOpts struct {
-	RequestContext context.Context
-	RecvRespHandle RecvRespHandler
-	Cancel         func()
+	RequestContext  context.Context
+	FinalRespHandle FinalRespHandler
+	Cancel          func()
 }
 
 // NewPublishOptions returns an option collection
@@ -26,21 +26,21 @@ func NewPublishOptions(opts []PubOpt) (out *PubOpts) {
 	if out.RequestContext == nil {
 		out.RequestContext, out.Cancel = context.WithCancel(context.Background())
 	}
-	if out.RecvRespHandle == nil {
-		out.RecvRespHandle = func(*pb.Response) {}
+	if out.FinalRespHandle == nil {
+		out.FinalRespHandle = func(*pb.Response) {}
 	}
 	return
 }
 
-// RecvRespHandler is the callback function when the root node receiving a response.
+// FinalRespHandler is the callback function when the root node receiving a response.
 // It will be called only in the root node.
 // It will be called more than one time when the number of responses is larger than one.
-type RecvRespHandler func(rp *pb.Response)
+type FinalRespHandler func(rp *pb.Response)
 
-// WithRecvRespHandler registers notifHandler
-func WithRecvRespHandler(notifhandle RecvRespHandler) PubOpt {
+// WithFinalRespHandler registers notifHandler
+func WithFinalRespHandler(handler FinalRespHandler) PubOpt {
 	return func(pubopts *PubOpts) error {
-		pubopts.RecvRespHandle = notifhandle
+		pubopts.FinalRespHandle = handler
 		return nil
 	}
 }

@@ -122,7 +122,7 @@ func (bpsc *BasicPubSubCollector) Publish(topic string, payload []byte, opts ...
 	var (
 		root    []byte
 		rqID    string
-		options *psc.PubOpts
+		options *opt.PubOpts
 		tosend  []byte
 	)
 	// assemble the request struct
@@ -145,7 +145,7 @@ func (bpsc *BasicPubSubCollector) Publish(topic string, payload []byte, opts ...
 
 		// register notif handler
 		bpsc.rcache.AddReqItem(rqID, &rc.ReqItem{
-			RecvRecvHandle: options.RecvRespHandle,
+			RecvRecvHandle: options.FinalRespHandle,
 			Topic:          topic,
 			Cancel:         options.Cancel,
 		})
@@ -188,7 +188,7 @@ func (bpsc *BasicPubSubCollector) topicHandle(topic string, data []byte) {
 	var (
 		err       error
 		ok        bool
-		rqhandle  psc.RequestHandler
+		rqhandle  opt.RequestHandler
 		rqresult  *pb.Intermediate
 		rqID      string
 		rootID    peer.ID
@@ -316,23 +316,23 @@ func (bpsc *BasicPubSubCollector) handleResponse(resp *pb.Response) (err error) 
 
 type topicHandlers struct {
 	lock     sync.RWMutex
-	handlers map[string]psc.RequestHandler
+	handlers map[string]opt.RequestHandler
 }
 
 func newTopicHandlers() *topicHandlers {
 	return &topicHandlers{
 		lock:     sync.RWMutex{},
-		handlers: make(map[string]psc.RequestHandler),
+		handlers: make(map[string]opt.RequestHandler),
 	}
 }
 
-func (td *topicHandlers) addOrReplaceReqHandler(topic string, rqhandle psc.RequestHandler) {
+func (td *topicHandlers) addOrReplaceReqHandler(topic string, rqhandle opt.RequestHandler) {
 	td.lock.Lock()
 	defer td.lock.Unlock()
 	td.handlers[topic] = rqhandle
 }
 
-func (td *topicHandlers) addReqHandler(topic string, rqhandle psc.RequestHandler) error {
+func (td *topicHandlers) addReqHandler(topic string, rqhandle opt.RequestHandler) error {
 	td.lock.Lock()
 	defer td.lock.Unlock()
 	if _, ok := td.handlers[topic]; ok {
@@ -348,7 +348,7 @@ func (td *topicHandlers) delReqHandler(topic string) {
 	delete(td.handlers, topic)
 }
 
-func (td *topicHandlers) getReqHandler(topic string) (psc.RequestHandler, bool) {
+func (td *topicHandlers) getReqHandler(topic string) (opt.RequestHandler, bool) {
 	td.lock.RLock()
 	defer td.lock.RUnlock()
 	rqhandle, ok := td.handlers[topic]

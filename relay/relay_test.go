@@ -68,7 +68,7 @@ func TestSendRecv(t *testing.T) {
 		assert.Equal(t, payload, rp.Payload)
 		okch <- struct{}{}
 	}
-	err = pub.Publish(topic, payload, opt.WithRecvRespHandler(notif))
+	err = pub.Publish(topic, payload, opt.WithFinalRespHandler(notif))
 	assert.NoError(t, err)
 
 	// after 2 seconds, test will failed

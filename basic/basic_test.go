@@ -69,7 +69,7 @@ func TestSendRecv(t *testing.T) {
 		assert.Equal(t, payload, rp.Payload)
 		okch <- struct{}{}
 	}
-	err = pub.Publish(topic, payload, opt.WithRecvRespHandler(notif))
+	err = pub.Publish(topic, payload, opt.WithFinalRespHandler(notif))
 	assert.NoError(t, err)
 
 	// after 2 seconds, test will failed
@@ -260,7 +260,7 @@ func TestLeaveAndJoin(t *testing.T) {
 		assert.Equal(t, payload, rp.Payload)
 		okch <- struct{}{}
 	}
-	err = pub.Publish(topic, payload, opt.WithRecvRespHandler(notifOK))
+	err = pub.Publish(topic, payload, opt.WithFinalRespHandler(notifOK))
 	assert.NoError(t, err)
 
 	// after 2 seconds, if okch receive nothing, test will failed
@@ -278,7 +278,7 @@ func TestLeaveAndJoin(t *testing.T) {
 	notifFail := func(rp *pb.Response) {
 		assert.FailNow(t, "should not recv message")
 	}
-	err = pub.Publish(topic, payload, opt.WithRecvRespHandler(notifFail))
+	err = pub.Publish(topic, payload, opt.WithFinalRespHandler(notifFail))
 	assert.NoError(t, err)
 	time.Sleep(10 * time.Millisecond)
 
@@ -287,7 +287,7 @@ func TestLeaveAndJoin(t *testing.T) {
 	assert.NoError(t, err)
 	time.Sleep(10 * time.Millisecond)
 
-	err = pub.Publish(topic, payload, opt.WithRecvRespHandler(notifOK))
+	err = pub.Publish(topic, payload, opt.WithFinalRespHandler(notifOK))
 	assert.NoError(t, err)
 	time.Sleep(10 * time.Millisecond)
 
@@ -333,7 +333,7 @@ func TestSelfNotif(t *testing.T) {
 		assert.Equal(t, payload, rp.Payload)
 		okch <- struct{}{}
 	}
-	err = pub.Publish(topic, payload, opt.WithRecvRespHandler(notif))
+	err = pub.Publish(topic, payload, opt.WithFinalRespHandler(notif))
 	assert.NoError(t, err)
 
 	// after 2 seconds, test will failed
@@ -389,7 +389,7 @@ func TestRejoin(t *testing.T) {
 		assert.Equal(t, another, rp.Payload)
 		okch <- struct{}{}
 	}
-	err = pub.Publish(topic, payload, opt.WithRecvRespHandler(notif))
+	err = pub.Publish(topic, payload, opt.WithFinalRespHandler(notif))
 	assert.NoError(t, err)
 
 	// after 2 seconds, test will failed

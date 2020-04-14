@@ -12,7 +12,7 @@ type RequestCache struct {
 
 // ReqItem .
 type ReqItem struct {
-	RecvRecvHandle opt.RecvRespHandler
+	RecvRecvHandle opt.FinalRespHandler
 	Topic          string
 	Cancel         func()
 }
