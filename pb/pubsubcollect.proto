@@ -19,12 +19,14 @@ message Request {
 }
 
 message RequestControl {
-    // root is the marshaled root node's peer_id 
+    // root is the peerid of the origin node
     bytes root = 1;
-    // seqno
-    uint64 seqno = 2;
+    // from is the node who gives you this request
+    bytes from = 2;
+    // seqno is the sequence number helps to generate request id
+    uint64 seqno = 3;
 
-    uint32 hops = 3;
+    uint32 hops = 4;
 }
 
 message Intermediate {
@@ -56,52 +58,10 @@ message Response {
 message ResponseControl {
     // response related request id.
     string request_id = 1;
+    bytes root = 2;
+    bytes from = 3;
 }
 
 message Responses {
     repeated Responses responses = 1;
-}
-
-message TopicEvent {
-    enum Type {
-        ReceiveRequest = 0;
-        SendResponse = 1;
-    }
-    Type type = 1;
-    ReceiveRequestEvent recv_request = 2;
-}
-
-message ReceiveRequestEvent {
-    Request request = 1;
-    string from = 2;
-}
-
-message SendResponseEvent {
-    Response response = 1;
-    string to = 2;
-}
-
-message CollectEvent {
-    enum Type {
-        BeginListen = 0;
-        ReceiveResponse = 1;
-        StopListen = 2;
-    }
-    Type type = 1;
-    BeginListenEvent begin_listen = 2;
-    ReceiveResponseEvent recv_response = 3;
-    StopListenEvent stop_listen = 4;
-}
-
-message BeginListenEvent {
-    string request_id = 1;
-}
-
-message ReceiveResponseEvent {
-    Response response = 1;
-    string from = 2;
-}
-
-message StopListenEvent {
-    string request_id = 1;
 }
