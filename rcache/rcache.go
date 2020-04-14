@@ -67,3 +67,10 @@ func (rc *RequestCache) RemoveTopic(topic string) {
 func (rc *RequestCache) RemoveAll() {
 	rc.cache.Purge()
 }
+
+type ResponseCache struct {
+	cache *lru.Cache
+}
+
+type ResponseItem struct {
+}

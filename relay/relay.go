@@ -2,6 +2,7 @@ package relaypsc
 
 import (
 	"bdware.org/libp2p/go-libp2p-collect/opt"
+	rc "bdware.org/libp2p/go-libp2p-collect/rcache"
 	pubsub "bdware.org/libp2p/go-libp2p-pubsub"
 	pb "bdware.org/libp2p/go-libp2p-pubsub/pb"
 	host "github.com/libp2p/go-libp2p-core/host"
@@ -9,7 +10,9 @@ import (
 
 // RelayPubSubCollector .
 type RelayPubSubCollector struct {
-	psubs *pubsub.PubSub
+	psubs        *pubsub.PubSub
+	respCache    *rc.ResponseCache
+	requestCache *rc.RequestCache
 }
 
 // NewRelayPubSubCollector .
