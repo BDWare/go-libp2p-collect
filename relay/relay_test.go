@@ -85,3 +85,13 @@ func TestDeduplication(t *testing.T) {
 	// B should be able to intercept the response from C, because it knows
 	// it is a duplicated response by checking its response cache.
 }
+
+func TestNoRequestIDForResponse(t *testing.T) {
+	// A -- B -- C
+	// A broadcasts a request R, and B should know R's route;
+	// what will happen if R expired in B,
+	// and at the same time C send R's response to B?
+	// We have some strategy to skip the forgetful node fault.
+	// for example, we can forward this response to a random node.
+	// But now, we just drop it.
+}
