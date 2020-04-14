@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"bdware.org/libp2p/go-libp2p-collect/mock"
 	. "bdware.org/libp2p/go-libp2p-collect/apsub"
+	"bdware.org/libp2p/go-libp2p-collect/mock"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -20,9 +20,9 @@ func TestPubSub(t *testing.T) {
 	// Even if hosts are connected,
 	// the topics may not find the pre-exist connections.
 	// We establish connections after topics are created.
-	pub, err := NewTopics(pubhost)
+	pub, err := NewAsyncPubSub(pubhost)
 	assert.NoError(t, err)
-	sub, err := NewTopics(subhost)
+	sub, err := NewAsyncPubSub(subhost)
 	assert.NoError(t, err)
 	mnet.ConnectPeers(pubhost.ID(), subhost.ID())
 

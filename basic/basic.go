@@ -60,7 +60,7 @@ func NewBasicPubSubCollector(h host.Host, opts ...Option) (bpsc *BasicPubSubColl
 		conf, err = checkOptConfAndGetInnerConf(initopts.Conf)
 	}
 	if err == nil {
-		apubsub, err = apsub.NewTopics(
+		apubsub, err = apsub.NewAsyncPubSub(
 			h,
 			apsub.WithSelfNotif(true),
 			apsub.WithCustomPubSubFactory(
