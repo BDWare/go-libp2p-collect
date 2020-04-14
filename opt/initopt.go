@@ -59,18 +59,22 @@ func WithRequestIDGenerator(idgen ReqIDGenerator) InitOpt {
 // Conf is the static configuration of BasicPubSubCollector
 // TODO: add durability for conf
 type Conf struct {
-	//
+	// ProtocolPrefix is the protocol name prefix
 	ProtocolPrefix string
-	// RequestBufSize restricts request buffer size.
-	// Once a node sends or receives a request, a buffer slot is occupied.
-	RequestBufSize int
+	// RequestCacheSize .
+	// RequestCache is used to store the request control message,
+	// which is for response routing.
+	RequestCacheSize int
+	// ResponseCacheSize .
+	// ResponseCache is used to deduplicate the response.
+	ResponseCacheSize int
 }
 
 // MakeDefaultConf returns a default Conf instance
 func MakeDefaultConf() Conf {
 	return Conf{
-		ProtocolPrefix: "/basicpsc",
-		RequestBufSize: 512,
+		ProtocolPrefix:   "/basicpsc",
+		RequestCacheSize: 512,
 	}
 }
 

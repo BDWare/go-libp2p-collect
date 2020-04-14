@@ -6,6 +6,8 @@ import (
 )
 
 // RequestCache .
+// RequestCache is used to store the request control message,
+// which is for response routing.
 type RequestCache struct {
 	cache *lru.Cache
 }
@@ -18,7 +20,7 @@ type ReqItem struct {
 }
 
 // callback when a request is evicted.
-func onEvict(key interface{}, value interface{}) {
+func onReqCacheEvict(key interface{}, value interface{}) {
 	// cancel context
 	item := value.(*ReqItem)
 	item.Cancel()
@@ -27,7 +29,7 @@ func onEvict(key interface{}, value interface{}) {
 
 // NewRequestCache .
 func NewRequestCache(size int) (*RequestCache, error) {
-	l, err := lru.NewWithEvict(size, onEvict)
+	l, err := lru.NewWithEvict(size, onReqCacheEvict)
 	return &RequestCache{
 		cache: l,
 	}, err
@@ -68,9 +70,23 @@ func (rc *RequestCache) RemoveAll() {
 	rc.cache.Purge()
 }
 
+// ResponseCache .
+// ResponseCache is used to deduplicate the response
 type ResponseCache struct {
 	cache *lru.Cache
 }
 
+// ResponseItem .
 type ResponseItem struct {
+}
+
+// NewResponseCache .
+func NewResponseCache(size int) (*ResponseCache, error) {
+	l, err := lru.NewWithEvict(size, onRespCacheEvict)
+	return &ResponseCache{
+		cache: l,
+	}, err
+}
+
+func onRespCacheEvict(key interface{}, value interface{}) {
 }

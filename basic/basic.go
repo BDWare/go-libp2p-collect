@@ -26,7 +26,7 @@ import (
 // and return the response directly.
 type BasicPubSubCollector struct {
 	// conf is static configuration of BasicPubSubCollector
-	conf innerConf
+	conf *conf
 	// seqno is an increasing number to give each request ID
 	seqno uint64
 
@@ -48,7 +48,7 @@ func NewBasicPubSubCollector(h host.Host, opts ...Option) (bpsc *BasicPubSubColl
 
 	var (
 		initopts *opt.InitOpts
-		conf     innerConf
+		c        *conf
 		apubsub  *apsub.AsyncPubSub
 		thandles *topicHandlers
 		rcache   *rc.RequestCache
@@ -57,7 +57,7 @@ func NewBasicPubSubCollector(h host.Host, opts ...Option) (bpsc *BasicPubSubColl
 		initopts, err = opt.NewInitOpts(opts)
 	}
 	if err == nil {
-		conf, err = checkOptConfAndGetInnerConf(initopts.Conf)
+		c, err = checkOptConfAndGetInnerConf(initopts.Conf)
 	}
 	if err == nil {
 		apubsub, err = apsub.NewAsyncPubSub(
@@ -70,20 +70,20 @@ func NewBasicPubSubCollector(h host.Host, opts ...Option) (bpsc *BasicPubSubColl
 						context.TODO(),
 						h,
 						// we do the pubsub with conf.RequestProtocol
-						pubsub.WithCustomProtocols([]protocol.ID{conf.RequestProtocol}),
+						pubsub.WithCustomProtocols([]protocol.ID{c.RequestProtocol}),
 					)
 				}),
 		)
 	}
 	if err == nil {
-		rcache, err = rc.NewRequestCache(conf.RequestBufSize)
+		rcache, err = rc.NewRequestCache(c.RequestBufSize)
 	}
 	if err == nil {
 		thandles = newTopicHandlers()
 	}
 	if err == nil {
 		bpsc = &BasicPubSubCollector{
-			conf:     conf,
+			conf:     c,
 			seqno:    rand.Uint64(),
 			host:     h,
 			apubsub:  apubsub,
@@ -367,23 +367,25 @@ type Option = opt.InitOpt
 // ReqIDGenerator is type alias
 type ReqIDGenerator = opt.ReqIDGenerator
 
-type innerConf struct {
+type conf struct {
 	RequestProtocol  protocol.ID
 	ResponseProtocol protocol.ID
 	RequestBufSize   int
 }
 
-func checkOptConfAndGetInnerConf(conf *opt.Conf) (inner innerConf, err error) {
-	if conf.ProtocolPrefix == "" {
+func checkOptConfAndGetInnerConf(optConf *opt.Conf) (inner *conf, err error) {
+	if optConf.ProtocolPrefix == "" {
 		err = fmt.Errorf("unexpected nil Prefix")
 	}
-	if conf.RequestBufSize < 0 {
+	if optConf.RequestCacheSize < 0 {
 		err = fmt.Errorf("unexpected negetive RequestBufSize")
 	}
 	if err == nil {
-		inner.RequestProtocol = protocol.ID(conf.ProtocolPrefix + "/request")
-		inner.ResponseProtocol = protocol.ID(conf.ProtocolPrefix + "/response")
-		inner.RequestBufSize = conf.RequestBufSize
+		inner = &conf{
+			RequestProtocol:  protocol.ID(optConf.ProtocolPrefix + "/request"),
+			ResponseProtocol: protocol.ID(optConf.ProtocolPrefix + "/response"),
+			RequestBufSize:   optConf.RequestCacheSize,
+		}
 	}
 	return
 }
