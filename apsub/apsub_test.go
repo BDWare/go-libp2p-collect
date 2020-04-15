@@ -32,9 +32,9 @@ func TestPubSub(t *testing.T) {
 	expecttopic := "test-topic"
 	expectdata := []byte{1, 2, 3}
 	okch := make(chan struct{})
-	subhandle := func(topic string, data []byte) {
+	subhandle := func(topic string, msg *Message) {
 		assert.Equal(t, expecttopic, topic)
-		assert.Equal(t, expectdata, data)
+		assert.Equal(t, expectdata, msg.Data)
 		// to make sure handle is called
 		okch <- struct{}{}
 	}

@@ -43,6 +43,15 @@ type BasicPubSubCollector struct {
 	ridgen ReqIDGenerator
 }
 
+// Option is type alias
+type Option = opt.InitOpt
+
+// ReqIDGenerator is type alias
+type ReqIDGenerator = opt.ReqIDGenerator
+
+// Message is type alias
+type Message = apsub.Message
+
 // NewBasicPubSubCollector returns a new BasicPubSubCollector
 func NewBasicPubSubCollector(h host.Host, opts ...Option) (bpsc *BasicPubSubCollector, err error) {
 
@@ -184,7 +193,7 @@ func (bpsc *BasicPubSubCollector) Close() error {
 }
 
 // topicHandle will be called when a request arrived.
-func (bpsc *BasicPubSubCollector) topicHandle(topic string, data []byte) {
+func (bpsc *BasicPubSubCollector) topicHandle(topic string, msg *Message) {
 	var (
 		err       error
 		ok        bool
@@ -198,7 +207,7 @@ func (bpsc *BasicPubSubCollector) topicHandle(topic string, data []byte) {
 	)
 	// unmarshal the received data into request struct
 	req := &pb.Request{}
-	err = req.Unmarshal(data)
+	err = req.Unmarshal(msg.Data)
 
 	if err == nil {
 		rqID = bpsc.ridgen(req)
@@ -360,12 +369,6 @@ func (td *topicHandlers) removeAll() {
 		delete(td.handlers, k)
 	}
 }
-
-// Option is type alias
-type Option = opt.InitOpt
-
-// ReqIDGenerator is type alias
-type ReqIDGenerator = opt.ReqIDGenerator
 
 type conf struct {
 	RequestProtocol  protocol.ID

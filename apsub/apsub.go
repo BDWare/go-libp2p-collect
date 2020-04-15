@@ -9,7 +9,11 @@ import (
 )
 
 // TopicHandle is the handle function of subscription.
-type TopicHandle func(topic string, data []byte)
+// WARNING: DO NOT change msg, if a msg includes multiple topics, they share a message.
+type TopicHandle func(topic string, msg *pubsub.Message)
+
+// Message is type alias
+type Message = pubsub.Message
 
 // AsyncPubSub encapsulates pubsub, provides async methods to get subscribe messages.
 // AsyncPubSub also manages the joined topics
@@ -224,7 +228,7 @@ func (ap *AsyncPubSub) forwardTopic(ctx context.Context, sub *pubsub.Subscriptio
 
 		if err == nil {
 			if msg.ReceivedFrom != ap.host.ID() || ap.selfNotif {
-				go f(topic, msg.Data)
+				go f(topic, msg)
 			}
 		} else {
 			break
