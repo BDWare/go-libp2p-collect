@@ -16,7 +16,6 @@ require (
 	github.com/libp2p/go-addr-util v0.0.2 // indirect
 	github.com/libp2p/go-libp2p v0.7.5-0.20200409162821-fee77aa52d5b
 	github.com/libp2p/go-libp2p-core v0.5.1
-	github.com/libp2p/go-libp2p-peer v0.2.0
 	github.com/libp2p/go-libp2p-peerstore v0.2.3 // indirect
 	github.com/multiformats/go-multiaddr v0.2.1
 	github.com/multiformats/go-multibase v0.0.2 // indirect

@@ -7,7 +7,7 @@ import (
 
 	"bdware.org/libp2p/go-libp2p-collect/mock"
 	"bdware.org/libp2p/go-libp2p-collect/pb"
-	peer "github.com/libp2p/go-libp2p-peer"
+	peer "github.com/libp2p/go-libp2p-core/peer"
 	"github.com/stretchr/testify/assert"
 )
 
