@@ -78,8 +78,8 @@ func onReqCacheEvict(key interface{}, value interface{}) {
 	// TODO: add logging
 }
 
-// NewRequestCache .
-func NewRequestCache(size int) (*requestCache, error) {
+// newRequestCache .
+func newRequestCache(size int) (*requestCache, error) {
 	l, err := lru.NewWithEvict(size, onReqCacheEvict)
 	return &requestCache{
 		cache: l,
@@ -131,8 +131,8 @@ type responseCache struct {
 type ResponseItem struct {
 }
 
-// NewResponseCache .
-func NewResponseCache(size int) (*responseCache, error) {
+// newResponseCache .
+func newResponseCache(size int) (*responseCache, error) {
 	l, err := lru.NewWithEvict(size, onRespCacheEvict)
 	return &responseCache{
 		cache: l,

@@ -36,10 +36,10 @@ func NewRelayPubSubCollector(h host.Host, options ...InitOpt) (r *RelayPubSubCol
 		conf, err = checkOptConfAndGetConf(opts.Conf)
 	}
 	if err == nil {
-		reqCache, err = NewRequestCache(conf.requestCacheSize)
+		reqCache, err = newRequestCache(conf.requestCacheSize)
 	}
 	if err == nil {
-		respCache, err = NewResponseCache(conf.requestCacheSize)
+		respCache, err = newResponseCache(conf.requestCacheSize)
 	}
 	if err == nil {
 		r = &RelayPubSubCollector{

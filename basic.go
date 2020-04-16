@@ -71,7 +71,7 @@ func NewBasicPubSubCollector(h host.Host, opts ...InitOpt) (bpsc *BasicPubSubCol
 		)
 	}
 	if err == nil {
-		rcache, err = NewRequestCache(c.requestCacheSize)
+		rcache, err = newRequestCache(c.requestCacheSize)
 	}
 	if err == nil {
 		thandles = newRequestHandlerMap()
