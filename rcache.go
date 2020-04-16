@@ -59,7 +59,7 @@ func (td *requestHandlersMap) removeAll() {
 // RequestCache .
 // RequestCache is used to store the request control message,
 // which is for response routing.
-type RequestCache struct {
+type requestCache struct {
 	cache *lru.Cache
 }
 
@@ -79,25 +79,25 @@ func onReqCacheEvict(key interface{}, value interface{}) {
 }
 
 // NewRequestCache .
-func NewRequestCache(size int) (*RequestCache, error) {
+func NewRequestCache(size int) (*requestCache, error) {
 	l, err := lru.NewWithEvict(size, onReqCacheEvict)
-	return &RequestCache{
+	return &requestCache{
 		cache: l,
 	}, err
 }
 
 // AddReqItem .
-func (rc *RequestCache) AddReqItem(reqid string, reqItem *ReqItem) {
+func (rc *requestCache) AddReqItem(reqid string, reqItem *ReqItem) {
 	rc.cache.Add(reqid, reqItem)
 }
 
 // RemoveReqItem .
-func (rc *RequestCache) RemoveReqItem(reqid string) {
+func (rc *requestCache) RemoveReqItem(reqid string) {
 	rc.cache.Remove(reqid)
 }
 
 // GetReqItem .
-func (rc *RequestCache) GetReqItem(reqid string) (out *ReqItem, ok bool) {
+func (rc *requestCache) GetReqItem(reqid string) (out *ReqItem, ok bool) {
 	var v interface{}
 	v, ok = rc.cache.Get(reqid)
 	out, ok = v.(*ReqItem)
@@ -105,7 +105,7 @@ func (rc *RequestCache) GetReqItem(reqid string) (out *ReqItem, ok bool) {
 }
 
 // RemoveTopic .
-func (rc *RequestCache) RemoveTopic(topic string) {
+func (rc *requestCache) RemoveTopic(topic string) {
 	for _, k := range rc.cache.Keys() {
 		if v, ok := rc.cache.Peek(k); ok {
 			item := v.(*ReqItem)
@@ -117,13 +117,13 @@ func (rc *RequestCache) RemoveTopic(topic string) {
 }
 
 // RemoveAll .
-func (rc *RequestCache) RemoveAll() {
+func (rc *requestCache) RemoveAll() {
 	rc.cache.Purge()
 }
 
 // ResponseCache .
 // ResponseCache is used to deduplicate the response
-type ResponseCache struct {
+type responseCache struct {
 	cache *lru.Cache
 }
 
@@ -132,9 +132,9 @@ type ResponseItem struct {
 }
 
 // NewResponseCache .
-func NewResponseCache(size int) (*ResponseCache, error) {
+func NewResponseCache(size int) (*responseCache, error) {
 	l, err := lru.NewWithEvict(size, onRespCacheEvict)
-	return &ResponseCache{
+	return &responseCache{
 		cache: l,
 	}, err
 }

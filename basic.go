@@ -34,7 +34,7 @@ type BasicPubSubCollector struct {
 	// We don't know when there is no incoming response for a certain request.
 	// We have to eliminate the out-dated request resource.
 	// After elimination, the response related to this request will be ignored.
-	rcache *RequestCache
+	rcache *requestCache
 	ridgen ReqIDGenerator
 }
 
@@ -46,7 +46,7 @@ func NewBasicPubSubCollector(h host.Host, opts ...InitOpt) (bpsc *BasicPubSubCol
 		c        *conf
 		apubsub  *AsyncPubSub
 		thandles *requestHandlersMap
-		rcache   *RequestCache
+		rcache   *requestCache
 	)
 	{
 		initopts, err = NewInitOpts(opts)
