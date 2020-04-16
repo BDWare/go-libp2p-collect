@@ -19,7 +19,7 @@ type Message = pubsub.Message
 // AsyncPubSub also manages the joined topics
 type AsyncPubSub struct {
 	lock      sync.RWMutex
-	items     map[string]topicitem
+	items     map[string]*topicitem
 	pubs      *pubsub.PubSub
 	host      host.Host
 	selfNotif bool
@@ -28,6 +28,8 @@ type AsyncPubSub struct {
 type topicitem struct {
 	name  string
 	topic *pubsub.Topic
+	// storage is useful to storage user-defined topic-related item
+	storage map[interface{}]interface{}
 	// ctxcancel is called to cancel context
 	ctxcancel func()
 	// subcancel is called to cancel subscription
@@ -66,7 +68,7 @@ func WithSelfNotif(enable bool) TopicOpt {
 func NewAsyncPubSub(h host.Host, opts ...TopicOpt) (apsub *AsyncPubSub, err error) {
 	t := &AsyncPubSub{
 		lock:      sync.RWMutex{},
-		items:     make(map[string]topicitem),
+		items:     make(map[string]*topicitem),
 		host:      h,
 		selfNotif: false,
 	}
@@ -114,7 +116,7 @@ func (ap *AsyncPubSub) fastPublish(ctx context.Context, topic string, data []byt
 	defer ap.lock.RUnlock()
 	/*_*/ ap.lock.RLock()
 
-	var it topicitem
+	var it *topicitem
 	it, ok = ap.items[topic]
 	if ok {
 		err = it.topic.Publish(ctx, data)
@@ -126,50 +128,29 @@ func (ap *AsyncPubSub) slowPublish(ctx context.Context, topic string, data []byt
 	defer ap.lock.Unlock()
 	/*_*/ ap.lock.Lock()
 
-	var ok bool
-	var it topicitem
+	var t *pubsub.Topic
+	t, err = ap.pubs.Join(topic)
 	if err == nil {
-		it, ok = ap.items[topic]
-	}
-
-	if err == nil && !ok {
-		it.topic, err = ap.pubs.Join(topic)
-		if err == nil {
-			it.name = topic
-			ap.items[topic] = it
-		}
-	}
-
-	if err == nil {
-		err = it.topic.Publish(ctx, data)
+		err = t.Publish(ctx, data)
 	}
 
 	return
 }
 
 // Subscribe a topic
-// Subscribe a same topic is ok.
+// Subscribe a same topic is ok, but the previous handle will be replaced.
 func (ap *AsyncPubSub) Subscribe(topic string, handle TopicHandle) (err error) {
 	defer ap.lock.Unlock()
 	/*_*/ ap.lock.Lock()
 
 	it, ok := ap.items[topic]
-	if ok {
-		// Close topic doesn't work here, use subscription cancel instead.
-		if it.subcancel != nil {
-			it.subcancel()
-			it.subcancel = nil
+	if !ok {
+		it = &topicitem{
+			name:      topic,
+			storage:   make(map[interface{}]interface{}),
+			subcancel: func() {},
+			ctxcancel: func() {},
 		}
-		if it.ctxcancel != nil {
-			it.ctxcancel()
-			it.ctxcancel = nil
-		}
-		it.topic.Close()
-		it.topic = nil
-
-	}
-
-	if err == nil {
 		// Join should be called only once
 		it.topic, err = ap.pubs.Join(topic)
 	}
@@ -177,13 +158,14 @@ func (ap *AsyncPubSub) Subscribe(topic string, handle TopicHandle) (err error) {
 	var sub *pubsub.Subscription
 	if err == nil {
 		sub, err = it.topic.Subscribe()
-		it.subcancel = sub.Cancel
 	}
 
+	var ctx context.Context
 	if err == nil {
-		ctx := context.TODO()
-		ctx, it.ctxcancel = context.WithCancel(ctx)
-		it.name = topic
+		it.subcancel()
+		it.ctxcancel()
+		it.subcancel = sub.Cancel
+		ctx, it.ctxcancel = context.WithCancel(context.TODO())
 
 		ap.items[topic] = it
 		go ap.forwardTopic(ctx, sub, topic, handle)
