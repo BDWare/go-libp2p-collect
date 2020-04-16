@@ -28,3 +28,25 @@ func checkOptConfAndGetInnerConf(optConf *Conf) (inner *conf, err error) {
 	}
 	return
 }
+
+// Conf is the static configuration of BasicPubSubCollector
+type Conf struct {
+	// ProtocolPrefix is the protocol name prefix
+	ProtocolPrefix string `json:"protocol"`
+	// RequestCacheSize .
+	// RequestCache is used to store the request control message,
+	// which is for response routing.
+	RequestCacheSize int `json:"request_cache_size"`
+	// ResponseCacheSize .
+	// ResponseCache is used to deduplicate the response.
+	ResponseCacheSize int `json:"response_cache_size"`
+}
+
+// MakeDefaultConf returns a default Conf instance
+func MakeDefaultConf() Conf {
+	return Conf{
+		ProtocolPrefix:    "/basicpsc",
+		RequestCacheSize:  512,
+		ResponseCacheSize: 1024,
+	}
+}
