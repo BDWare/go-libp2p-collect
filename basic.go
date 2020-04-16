@@ -38,11 +38,8 @@ type BasicPubSubCollector struct {
 	ridgen ReqIDGenerator
 }
 
-// Option is type alias
-type Option = InitOpt
-
 // NewBasicPubSubCollector returns a new BasicPubSubCollector
-func NewBasicPubSubCollector(h host.Host, opts ...Option) (bpsc *BasicPubSubCollector, err error) {
+func NewBasicPubSubCollector(h host.Host, opts ...InitOpt) (bpsc *BasicPubSubCollector, err error) {
 
 	var (
 		initopts *InitOpts
