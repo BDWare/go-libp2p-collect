@@ -1,11 +1,13 @@
 package relaypsc
 
 import (
+	"context"
 	"fmt"
 
 	"bdware.org/libp2p/go-libp2p-collect/apsub"
 	"bdware.org/libp2p/go-libp2p-collect/opt"
 	rc "bdware.org/libp2p/go-libp2p-collect/rcache"
+	pubsub "bdware.org/libp2p/go-libp2p-pubsub"
 	pb "bdware.org/libp2p/go-libp2p-pubsub/pb"
 	host "github.com/libp2p/go-libp2p-core/host"
 	protocol "github.com/libp2p/go-libp2p-core/protocol"
@@ -27,6 +29,7 @@ func NewRelayPubSubCollector(h host.Host, options ...opt.InitOpt) (r *RelayPubSu
 		conf      *conf
 		reqCache  *rc.RequestCache
 		respCache *rc.ResponseCache
+		ap        *apsub.AsyncPubSub
 	)
 	{
 		opts, err = opt.NewInitOpts(options)
@@ -39,6 +42,31 @@ func NewRelayPubSubCollector(h host.Host, options ...opt.InitOpt) (r *RelayPubSu
 	}
 	if err == nil {
 		respCache, err = rc.NewResponseCache(conf.requestCacheSize)
+	}
+	if err == nil {
+		r = &RelayPubSubCollector{
+			conf:         conf,
+			requestCache: reqCache,
+			respCache:    respCache,
+		}
+		ap, err = apsub.NewAsyncPubSub(
+			h,
+			apsub.WithSelfNotif(true),
+			apsub.WithCustomPubSubFactory(func(h host.Host) (*pubsub.PubSub, error) {
+				return pubsub.NewRandomSub(
+					context.Background(),
+					h,
+					pubsub.WithCustomProtocols([]protocol.ID{conf.requestProtocol}),
+					pubsub.WithEventTracer((*tracer)(r)),
+				)
+			}),
+		)
+	}
+	if err == nil {
+		r.apubsub = ap
+
+	} else { // err != nil
+		r = nil
 	}
 
 	return
@@ -58,12 +86,6 @@ func (r *RelayPubSubCollector) Publish(topic string, data []byte, opts ...opt.Pu
 // Leave the overlay
 func (r *RelayPubSubCollector) Leave(topic string) error {
 	panic("not implemented")
-}
-
-type tracer RelayPubSubCollector
-
-func (t *tracer) Trace(evt *pb.TraceEvent) {
-
 }
 
 // conf is the static configuration of relay pubsubcollector
@@ -88,4 +110,10 @@ func checkOptConfAndGetConf(optConf *opt.Conf) (c *conf, err error) {
 		}
 	}
 	return
+}
+
+type tracer RelayPubSubCollector
+
+func (t *tracer) Trace(evt *pb.TraceEvent) {
+	
 }
