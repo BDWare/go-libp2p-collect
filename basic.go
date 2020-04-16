@@ -1,4 +1,4 @@
-package basicpsc
+package collect
 
 import (
 	"context"
@@ -8,11 +8,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	psc "bdware.org/libp2p/go-libp2p-collect"
-	"bdware.org/libp2p/go-libp2p-collect/apsub"
-	"bdware.org/libp2p/go-libp2p-collect/opt"
 	"bdware.org/libp2p/go-libp2p-collect/pb"
-	rc "bdware.org/libp2p/go-libp2p-collect/rcache"
 	pubsub "bdware.org/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
@@ -32,60 +28,54 @@ type BasicPubSubCollector struct {
 
 	host host.Host
 	// a wrapper of apsub system
-	apubsub *apsub.AsyncPubSub
+	apubsub *AsyncPubSub
 
 	reqHandlers *requestHandlersMap
 	// RequestCache is a cache of requests.
 	// We don't know when there is no incoming response for a certain request.
 	// We have to eliminate the out-dated request resource.
 	// After elimination, the response related to this request will be ignored.
-	rcache *rc.RequestCache
+	rcache *RequestCache
 	ridgen ReqIDGenerator
 }
 
 // Option is type alias
-type Option = opt.InitOpt
-
-// ReqIDGenerator is type alias
-type ReqIDGenerator = opt.ReqIDGenerator
-
-// Message is type alias
-type Message = apsub.Message
+type Option = InitOpt
 
 // NewBasicPubSubCollector returns a new BasicPubSubCollector
 func NewBasicPubSubCollector(h host.Host, opts ...Option) (bpsc *BasicPubSubCollector, err error) {
 
 	var (
-		initopts *opt.InitOpts
+		initopts *InitOpts
 		c        *conf
-		apubsub  *apsub.AsyncPubSub
+		apubsub  *AsyncPubSub
 		thandles *requestHandlersMap
-		rcache   *rc.RequestCache
+		rcache   *RequestCache
 	)
 	{
-		initopts, err = opt.NewInitOpts(opts)
+		initopts, err = NewInitOpts(opts)
 	}
 	if err == nil {
 		c, err = checkOptConfAndGetInnerConf(initopts.Conf)
 	}
 	if err == nil {
-		apubsub, err = apsub.NewAsyncPubSub(
+		apubsub, err = NewAsyncPubSub(
 			h,
-			apsub.WithSelfNotif(true),
-			apsub.WithCustomPubSubFactory(
+			WithSelfNotif(true),
+			WithCustomPubSubFactory(
 				func(h host.Host) (*pubsub.PubSub, error) {
 					return pubsub.NewRandomSub(
 						// TODO: add context in initopts
 						context.TODO(),
 						h,
 						// we do the pubsub with conf.RequestProtocol
-						pubsub.WithCustomProtocols([]protocol.ID{c.RequestProtocol}),
+						pubsub.WithCustomProtocols([]protocol.ID{c.requestProtocol}),
 					)
 				}),
 		)
 	}
 	if err == nil {
-		rcache, err = rc.NewRequestCache(c.RequestBufSize)
+		rcache, err = NewRequestCache(c.requestCacheSize)
 	}
 	if err == nil {
 		thandles = newTopicHandlers()
@@ -108,10 +98,10 @@ func NewBasicPubSubCollector(h host.Host, opts ...Option) (bpsc *BasicPubSubColl
 // Join the overlay network defined by topic
 // Join the same topic is allowed here.
 // Rejoin will refresh the requestHandler.
-func (bpsc *BasicPubSubCollector) Join(topic string, opts ...psc.JoinOpt) (err error) {
-	var options *opt.JoinOpts
+func (bpsc *BasicPubSubCollector) Join(topic string, opts ...JoinOpt) (err error) {
+	var options *JoinOpts
 	{
-		options, err = opt.NewJoinOptions(opts)
+		options, err = NewJoinOptions(opts)
 	}
 	// subscribe the topic
 	if err == nil {
@@ -127,11 +117,11 @@ func (bpsc *BasicPubSubCollector) Join(topic string, opts ...psc.JoinOpt) (err e
 }
 
 // Publish a serilized request payload.
-func (bpsc *BasicPubSubCollector) Publish(topic string, payload []byte, opts ...psc.PubOpt) (err error) {
+func (bpsc *BasicPubSubCollector) Publish(topic string, payload []byte, opts ...PubOpt) (err error) {
 	var (
 		root    []byte
 		rqID    string
-		options *opt.PubOpts
+		options *PubOpts
 		tosend  []byte
 	)
 	// assemble the request struct
@@ -150,17 +140,17 @@ func (bpsc *BasicPubSubCollector) Publish(topic string, payload []byte, opts ...
 		tosend, err = req.Marshal()
 	}
 	if err == nil {
-		options = opt.NewPublishOptions(opts)
+		options = NewPublishOptions(opts)
 
 		// register notif handler
-		bpsc.rcache.AddReqItem(rqID, &rc.ReqItem{
+		bpsc.rcache.AddReqItem(rqID, &ReqItem{
 			RecvRecvHandle: options.FinalRespHandle,
 			Topic:          topic,
 			Cancel:         options.Cancel,
 		})
 
 		// add stream handler when responses return
-		bpsc.host.SetStreamHandler(bpsc.conf.ResponseProtocol, bpsc.streamHandler)
+		bpsc.host.SetStreamHandler(bpsc.conf.responseProtocol, bpsc.streamHandler)
 
 		//  publish marshaled request
 		err = bpsc.apubsub.Publish(options.RequestContext, topic, tosend)
@@ -193,11 +183,11 @@ func (bpsc *BasicPubSubCollector) Close() error {
 }
 
 // topicHandle will be called when a request arrived.
-func (bpsc *BasicPubSubCollector) topicHandle(topic string, msg *Message) {
+func (bpsc *BasicPubSubCollector) topicHandle(topic string, msg *pubsub.Message) {
 	var (
 		err       error
 		ok        bool
-		rqhandle  opt.RequestHandler
+		rqhandle  RequestHandler
 		rqresult  *pb.Intermediate
 		rqID      string
 		rootID    peer.ID
@@ -252,13 +242,13 @@ func (bpsc *BasicPubSubCollector) topicHandle(topic string, msg *Message) {
 
 		// send payload
 		ctx, cc := context.WithCancel(context.Background())
-		bpsc.rcache.AddReqItem(rqID, &rc.ReqItem{
+		bpsc.rcache.AddReqItem(rqID, &ReqItem{
 			Topic:  topic,
 			Cancel: cc,
 		})
 		// clean up later
 		defer bpsc.rcache.RemoveReqItem(rqID)
-		s, err = bpsc.host.NewStream(ctx, rootID, bpsc.conf.ResponseProtocol)
+		s, err = bpsc.host.NewStream(ctx, rootID, bpsc.conf.responseProtocol)
 
 	}
 	// everything is done, send payload by write to stream
@@ -304,7 +294,7 @@ func (bpsc *BasicPubSubCollector) handleResponseBytes(respBytes []byte) (err err
 func (bpsc *BasicPubSubCollector) handleResponse(resp *pb.Response) (err error) {
 	var (
 		reqID   string
-		reqItem *rc.ReqItem
+		reqItem *ReqItem
 		ok      bool
 	)
 	if resp == nil {
@@ -325,23 +315,23 @@ func (bpsc *BasicPubSubCollector) handleResponse(resp *pb.Response) (err error) 
 
 type requestHandlersMap struct {
 	lock     sync.RWMutex
-	handlers map[string]opt.RequestHandler
+	handlers map[string]RequestHandler
 }
 
 func newTopicHandlers() *requestHandlersMap {
 	return &requestHandlersMap{
 		lock:     sync.RWMutex{},
-		handlers: make(map[string]opt.RequestHandler),
+		handlers: make(map[string]RequestHandler),
 	}
 }
 
-func (td *requestHandlersMap) addOrReplaceReqHandler(topic string, rqhandle opt.RequestHandler) {
+func (td *requestHandlersMap) addOrReplaceReqHandler(topic string, rqhandle RequestHandler) {
 	td.lock.Lock()
 	defer td.lock.Unlock()
 	td.handlers[topic] = rqhandle
 }
 
-func (td *requestHandlersMap) addReqHandler(topic string, rqhandle opt.RequestHandler) error {
+func (td *requestHandlersMap) addReqHandler(topic string, rqhandle RequestHandler) error {
 	td.lock.Lock()
 	defer td.lock.Unlock()
 	if _, ok := td.handlers[topic]; ok {
@@ -357,7 +347,7 @@ func (td *requestHandlersMap) delReqHandler(topic string) {
 	delete(td.handlers, topic)
 }
 
-func (td *requestHandlersMap) getReqHandler(topic string) (opt.RequestHandler, bool) {
+func (td *requestHandlersMap) getReqHandler(topic string) (RequestHandler, bool) {
 	td.lock.RLock()
 	defer td.lock.RUnlock()
 	rqhandle, ok := td.handlers[topic]
@@ -370,27 +360,4 @@ func (td *requestHandlersMap) removeAll() {
 	for k := range td.handlers {
 		delete(td.handlers, k)
 	}
-}
-
-type conf struct {
-	RequestProtocol  protocol.ID
-	ResponseProtocol protocol.ID
-	RequestBufSize   int
-}
-
-func checkOptConfAndGetInnerConf(optConf *opt.Conf) (inner *conf, err error) {
-	if optConf.ProtocolPrefix == "" {
-		err = fmt.Errorf("unexpected nil Prefix")
-	}
-	if optConf.RequestCacheSize < 0 {
-		err = fmt.Errorf("unexpected negetive RequestBufSize")
-	}
-	if err == nil {
-		inner = &conf{
-			RequestProtocol:  protocol.ID(optConf.ProtocolPrefix + "/request"),
-			ResponseProtocol: protocol.ID(optConf.ProtocolPrefix + "/response"),
-			RequestBufSize:   optConf.RequestCacheSize,
-		}
-	}
-	return
 }

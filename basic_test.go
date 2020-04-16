@@ -1,4 +1,4 @@
-package basicpsc
+package collect
 
 import (
 	"context"
@@ -9,11 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"bdware.org/libp2p/go-libp2p-collect/mock"
-	"bdware.org/libp2p/go-libp2p-collect/opt"
 	"bdware.org/libp2p/go-libp2p-collect/pb"
 )
 
-func TestSendRecv(t *testing.T) {
+func TestBasicSendRecv(t *testing.T) {
 	mnet := mock.NewMockNet()
 	pubhost, err := mnet.NewLinkedPeer()
 	assert.NoError(t, err)
@@ -56,9 +55,9 @@ func TestSendRecv(t *testing.T) {
 		return out
 	}
 
-	err = pub.Join(topic, opt.WithRequestHandler(handlePub))
+	err = pub.Join(topic, WithRequestHandler(handlePub))
 	assert.NoError(t, err)
-	err = sub.Join(topic, opt.WithRequestHandler(handleSub))
+	err = sub.Join(topic, WithRequestHandler(handleSub))
 	assert.NoError(t, err)
 
 	// time to join
@@ -69,7 +68,7 @@ func TestSendRecv(t *testing.T) {
 		assert.Equal(t, payload, rp.Payload)
 		okch <- struct{}{}
 	}
-	err = pub.Publish(topic, payload, opt.WithFinalRespHandler(notif))
+	err = pub.Publish(topic, payload, WithFinalRespHandler(notif))
 	assert.NoError(t, err)
 
 	// after 2 seconds, test will failed
@@ -144,9 +143,9 @@ func TestSendRecv(t *testing.T) {
 // 		return out
 // 	}
 
-// 	err = pub.Join(topic, opt.WithRequestHandler(handlePub))
+// 	err = pub.Join(topic, WithRequestHandler(handlePub))
 // 	assert.NoError(t, err)
-// 	err = sub.Join(topic, opt.WithRequestHandler(handleSub))
+// 	err = sub.Join(topic, WithRequestHandler(handleSub))
 // 	assert.NoError(t, err)
 
 // 	// time to join
@@ -158,7 +157,7 @@ func TestSendRecv(t *testing.T) {
 // 	}
 
 // 	for i := uint32(0); i < 2*limit; i++ {
-// 		err = pub.Publish(topic, payload, opt.WithRecvRespHandler(notif))
+// 		err = pub.Publish(topic, payload, WithRecvRespHandler(notif))
 // 		assert.NoError(t, err)
 // 	}
 
@@ -247,9 +246,9 @@ func TestLeaveAndJoin(t *testing.T) {
 		return out
 	}
 
-	err = pub.Join(topic, opt.WithRequestHandler(handlePub))
+	err = pub.Join(topic, WithRequestHandler(handlePub))
 	assert.NoError(t, err)
-	err = sub.Join(topic, opt.WithRequestHandler(handleSub))
+	err = sub.Join(topic, WithRequestHandler(handleSub))
 	assert.NoError(t, err)
 	// time to join
 	time.Sleep(50 * time.Millisecond)
@@ -260,7 +259,7 @@ func TestLeaveAndJoin(t *testing.T) {
 		assert.Equal(t, payload, rp.Payload)
 		okch <- struct{}{}
 	}
-	err = pub.Publish(topic, payload, opt.WithFinalRespHandler(notifOK))
+	err = pub.Publish(topic, payload, WithFinalRespHandler(notifOK))
 	assert.NoError(t, err)
 
 	// after 2 seconds, if okch receive nothing, test will failed
@@ -278,16 +277,16 @@ func TestLeaveAndJoin(t *testing.T) {
 	notifFail := func(rp *pb.Response) {
 		assert.FailNow(t, "should not recv message")
 	}
-	err = pub.Publish(topic, payload, opt.WithFinalRespHandler(notifFail))
+	err = pub.Publish(topic, payload, WithFinalRespHandler(notifFail))
 	assert.NoError(t, err)
 	time.Sleep(10 * time.Millisecond)
 
 	// let sub join again
-	err = sub.Join(topic, opt.WithRequestHandler(handleSub))
+	err = sub.Join(topic, WithRequestHandler(handleSub))
 	assert.NoError(t, err)
 	time.Sleep(10 * time.Millisecond)
 
-	err = pub.Publish(topic, payload, opt.WithFinalRespHandler(notifOK))
+	err = pub.Publish(topic, payload, WithFinalRespHandler(notifOK))
 	assert.NoError(t, err)
 	time.Sleep(10 * time.Millisecond)
 
@@ -325,7 +324,7 @@ func TestSelfNotif(t *testing.T) {
 		return out
 	}
 
-	err = pub.Join(topic, opt.WithRequestHandler(handlePub))
+	err = pub.Join(topic, WithRequestHandler(handlePub))
 	assert.NoError(t, err)
 
 	okch := make(chan struct{})
@@ -333,7 +332,7 @@ func TestSelfNotif(t *testing.T) {
 		assert.Equal(t, payload, rp.Payload)
 		okch <- struct{}{}
 	}
-	err = pub.Publish(topic, payload, opt.WithFinalRespHandler(notif))
+	err = pub.Publish(topic, payload, WithFinalRespHandler(notif))
 	assert.NoError(t, err)
 
 	// after 2 seconds, test will failed
@@ -377,11 +376,11 @@ func TestRejoin(t *testing.T) {
 		return out
 	}
 
-	err = pub.Join(topic, opt.WithRequestHandler(handlePub))
+	err = pub.Join(topic, WithRequestHandler(handlePub))
 	assert.NoError(t, err)
 
 	// We join the same topic for a second time.
-	err = pub.Join(topic, opt.WithRequestHandler(anotherHandle))
+	err = pub.Join(topic, WithRequestHandler(anotherHandle))
 	assert.NoError(t, err)
 
 	okch := make(chan struct{})
@@ -389,7 +388,7 @@ func TestRejoin(t *testing.T) {
 		assert.Equal(t, another, rp.Payload)
 		okch <- struct{}{}
 	}
-	err = pub.Publish(topic, payload, opt.WithFinalRespHandler(notif))
+	err = pub.Publish(topic, payload, WithFinalRespHandler(notif))
 	assert.NoError(t, err)
 
 	// after 2 seconds, test will failed

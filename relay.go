@@ -1,54 +1,44 @@
-package relaypsc
+package collect
 
 import (
 	"context"
 	"fmt"
 
-	"bdware.org/libp2p/go-libp2p-collect/apsub"
-	"bdware.org/libp2p/go-libp2p-collect/opt"
-	rc "bdware.org/libp2p/go-libp2p-collect/rcache"
 	pubsub "bdware.org/libp2p/go-libp2p-pubsub"
 	pb "bdware.org/libp2p/go-libp2p-pubsub/pb"
 	host "github.com/libp2p/go-libp2p-core/host"
 	protocol "github.com/libp2p/go-libp2p-core/protocol"
 )
 
-// conf is the static configuration of relay pubsubcollector
-type conf struct {
-	requestProtocol  protocol.ID
-	responseProtocol protocol.ID
-	requestCacheSize int
-}
-
 // RelayPubSubCollector .
 type RelayPubSubCollector struct {
 	conf         *conf
-	apubsub      *apsub.AsyncPubSub
-	respCache    *rc.ResponseCache
-	requestCache *rc.RequestCache
+	apubsub      *AsyncPubSub
+	respCache    *ResponseCache
+	requestCache *RequestCache
 }
 
 // NewRelayPubSubCollector .
-func NewRelayPubSubCollector(h host.Host, options ...opt.InitOpt) (r *RelayPubSubCollector, err error) {
+func NewRelayPubSubCollector(h host.Host, options ...InitOpt) (r *RelayPubSubCollector, err error) {
 	// TODO: add lifetime control for randomSub
 	var (
-		opts      *opt.InitOpts
+		opts      *InitOpts
 		conf      *conf
-		reqCache  *rc.RequestCache
-		respCache *rc.ResponseCache
-		ap        *apsub.AsyncPubSub
+		reqCache  *RequestCache
+		respCache *ResponseCache
+		ap        *AsyncPubSub
 	)
 	{
-		opts, err = opt.NewInitOpts(options)
+		opts, err = NewInitOpts(options)
 	}
 	if err == nil {
 		conf, err = checkOptConfAndGetConf(opts.Conf)
 	}
 	if err == nil {
-		reqCache, err = rc.NewRequestCache(conf.requestCacheSize)
+		reqCache, err = NewRequestCache(conf.requestCacheSize)
 	}
 	if err == nil {
-		respCache, err = rc.NewResponseCache(conf.requestCacheSize)
+		respCache, err = NewResponseCache(conf.requestCacheSize)
 	}
 	if err == nil {
 		r = &RelayPubSubCollector{
@@ -56,10 +46,10 @@ func NewRelayPubSubCollector(h host.Host, options ...opt.InitOpt) (r *RelayPubSu
 			requestCache: reqCache,
 			respCache:    respCache,
 		}
-		ap, err = apsub.NewAsyncPubSub(
+		ap, err = NewAsyncPubSub(
 			h,
-			apsub.WithSelfNotif(true),
-			apsub.WithCustomPubSubFactory(func(h host.Host) (*pubsub.PubSub, error) {
+			WithSelfNotif(true),
+			WithCustomPubSubFactory(func(h host.Host) (*pubsub.PubSub, error) {
 				return pubsub.NewRandomSub(
 					context.Background(),
 					h,
@@ -81,12 +71,12 @@ func NewRelayPubSubCollector(h host.Host, options ...opt.InitOpt) (r *RelayPubSu
 
 // Join the overlay network defined by topic.
 // Register RequestHandle and ResponseHandle in opts.
-func (r *RelayPubSubCollector) Join(topic string, opts ...opt.JoinOpt) (err error) {
+func (r *RelayPubSubCollector) Join(topic string, opts ...JoinOpt) (err error) {
 	return
 }
 
 // Publish a serialized request. Request should be encasulated in data argument.
-func (r *RelayPubSubCollector) Publish(topic string, data []byte, opts ...opt.PubOpt) error {
+func (r *RelayPubSubCollector) Publish(topic string, data []byte, opts ...PubOpt) error {
 	panic("not implemented")
 }
 
@@ -95,11 +85,11 @@ func (r *RelayPubSubCollector) Leave(topic string) error {
 	panic("not implemented")
 }
 
-func (r *RelayPubSubCollector) topicHandle(topic string, msg *apsub.Message) {
+func (r *RelayPubSubCollector) topicHandle(topic string, msg *pubsub.Message) {
 
 }
 
-func checkOptConfAndGetConf(optConf *opt.Conf) (c *conf, err error) {
+func checkOptConfAndGetConf(optConf *Conf) (c *conf, err error) {
 	if optConf.ProtocolPrefix == "" {
 		err = fmt.Errorf("unexpected nil Prefix")
 	}

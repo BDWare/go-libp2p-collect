@@ -1,7 +1,6 @@
-package rcache
+package collect
 
 import (
-	"bdware.org/libp2p/go-libp2p-collect/opt"
 	lru "github.com/hashicorp/golang-lru"
 )
 
@@ -14,7 +13,7 @@ type RequestCache struct {
 
 // ReqItem .
 type ReqItem struct {
-	RecvRecvHandle opt.FinalRespHandler
+	RecvRecvHandle FinalRespHandler
 	Topic          string
 	Cancel         func()
 }

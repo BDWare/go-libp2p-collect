@@ -1,4 +1,4 @@
-package relaypsc
+package collect
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"bdware.org/libp2p/go-libp2p-collect/mock"
-	"bdware.org/libp2p/go-libp2p-collect/opt"
 	"bdware.org/libp2p/go-libp2p-collect/pb"
 	peer "github.com/libp2p/go-libp2p-peer"
 	"github.com/stretchr/testify/assert"
@@ -55,9 +54,9 @@ func TestSendRecv(t *testing.T) {
 		return out
 	}
 
-	err = pub.Join(topic, opt.WithRequestHandler(handlePub))
+	err = pub.Join(topic, WithRequestHandler(handlePub))
 	assert.NoError(t, err)
-	err = sub.Join(topic, opt.WithRequestHandler(handleSub))
+	err = sub.Join(topic, WithRequestHandler(handleSub))
 	assert.NoError(t, err)
 
 	// time to join
@@ -68,7 +67,7 @@ func TestSendRecv(t *testing.T) {
 		assert.Equal(t, payload, rp.Payload)
 		okch <- struct{}{}
 	}
-	err = pub.Publish(topic, payload, opt.WithFinalRespHandler(notif))
+	err = pub.Publish(topic, payload, WithFinalRespHandler(notif))
 	assert.NoError(t, err)
 
 	// after 2 seconds, test will failed

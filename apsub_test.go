@@ -1,12 +1,12 @@
-package apsub_test
+package collect
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	. "bdware.org/libp2p/go-libp2p-collect/apsub"
 	"bdware.org/libp2p/go-libp2p-collect/mock"
+	pubsub "bdware.org/libp2p/go-libp2p-pubsub"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -32,7 +32,7 @@ func TestPubSub(t *testing.T) {
 	expecttopic := "test-topic"
 	expectdata := []byte{1, 2, 3}
 	okch := make(chan struct{})
-	subhandle := func(topic string, msg *Message) {
+	subhandle := func(topic string, msg *pubsub.Message) {
 		assert.Equal(t, expecttopic, topic)
 		assert.Equal(t, expectdata, msg.Data)
 		// to make sure handle is called
