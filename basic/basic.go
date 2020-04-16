@@ -34,7 +34,7 @@ type BasicPubSubCollector struct {
 	// a wrapper of apsub system
 	apubsub *apsub.AsyncPubSub
 
-	thandles *topicHandlers
+	reqHandlers *requestHandlersMap
 	// RequestCache is a cache of requests.
 	// We don't know when there is no incoming response for a certain request.
 	// We have to eliminate the out-dated request resource.
@@ -59,7 +59,7 @@ func NewBasicPubSubCollector(h host.Host, opts ...Option) (bpsc *BasicPubSubColl
 		initopts *opt.InitOpts
 		c        *conf
 		apubsub  *apsub.AsyncPubSub
-		thandles *topicHandlers
+		thandles *requestHandlersMap
 		rcache   *rc.RequestCache
 	)
 	{
@@ -92,13 +92,13 @@ func NewBasicPubSubCollector(h host.Host, opts ...Option) (bpsc *BasicPubSubColl
 	}
 	if err == nil {
 		bpsc = &BasicPubSubCollector{
-			conf:     c,
-			seqno:    rand.Uint64(),
-			host:     h,
-			apubsub:  apubsub,
-			thandles: thandles,
-			rcache:   rcache,
-			ridgen:   initopts.IDGenerator,
+			conf:        c,
+			seqno:       rand.Uint64(),
+			host:        h,
+			apubsub:     apubsub,
+			reqHandlers: thandles,
+			rcache:      rcache,
+			ridgen:      initopts.IDGenerator,
 		}
 	}
 
@@ -120,7 +120,7 @@ func (bpsc *BasicPubSubCollector) Join(topic string, opts ...psc.JoinOpt) (err e
 
 	// register request handler
 	if err == nil {
-		bpsc.thandles.addOrReplaceReqHandler(topic, options.RequestHandler)
+		bpsc.reqHandlers.addOrReplaceReqHandler(topic, options.RequestHandler)
 	}
 
 	return
@@ -180,14 +180,14 @@ func (bpsc *BasicPubSubCollector) Publish(topic string, payload []byte, opts ...
 // The registered topichandles and responseHandlers will be closed.
 func (bpsc *BasicPubSubCollector) Leave(topic string) (err error) {
 	err = bpsc.apubsub.Unsubscribe(topic)
-	bpsc.thandles.delReqHandler(topic)
+	bpsc.reqHandlers.delReqHandler(topic)
 	bpsc.rcache.RemoveTopic(topic)
 	return
 }
 
 // Close the BasicPubSubCollector.
 func (bpsc *BasicPubSubCollector) Close() error {
-	bpsc.thandles.removeAll()
+	bpsc.reqHandlers.removeAll()
 	bpsc.rcache.RemoveAll()
 	return bpsc.apubsub.Close()
 }
@@ -213,7 +213,7 @@ func (bpsc *BasicPubSubCollector) topicHandle(topic string, msg *Message) {
 		rqID = bpsc.ridgen(req)
 		// Dispatch request to relative topic request handler,
 		// which should be initialized in join function
-		rqhandle, ok = bpsc.thandles.getReqHandler(topic)
+		rqhandle, ok = bpsc.reqHandlers.getReqHandler(topic)
 	}
 	if !ok {
 		err = fmt.Errorf("cannot find request handler for topic %s", topic)
@@ -323,25 +323,25 @@ func (bpsc *BasicPubSubCollector) handleResponse(resp *pb.Response) (err error) 
 	return err
 }
 
-type topicHandlers struct {
+type requestHandlersMap struct {
 	lock     sync.RWMutex
 	handlers map[string]opt.RequestHandler
 }
 
-func newTopicHandlers() *topicHandlers {
-	return &topicHandlers{
+func newTopicHandlers() *requestHandlersMap {
+	return &requestHandlersMap{
 		lock:     sync.RWMutex{},
 		handlers: make(map[string]opt.RequestHandler),
 	}
 }
 
-func (td *topicHandlers) addOrReplaceReqHandler(topic string, rqhandle opt.RequestHandler) {
+func (td *requestHandlersMap) addOrReplaceReqHandler(topic string, rqhandle opt.RequestHandler) {
 	td.lock.Lock()
 	defer td.lock.Unlock()
 	td.handlers[topic] = rqhandle
 }
 
-func (td *topicHandlers) addReqHandler(topic string, rqhandle opt.RequestHandler) error {
+func (td *requestHandlersMap) addReqHandler(topic string, rqhandle opt.RequestHandler) error {
 	td.lock.Lock()
 	defer td.lock.Unlock()
 	if _, ok := td.handlers[topic]; ok {
@@ -351,20 +351,22 @@ func (td *topicHandlers) addReqHandler(topic string, rqhandle opt.RequestHandler
 	return nil
 }
 
-func (td *topicHandlers) delReqHandler(topic string) {
+func (td *requestHandlersMap) delReqHandler(topic string) {
 	td.lock.Lock()
 	defer td.lock.Unlock()
 	delete(td.handlers, topic)
 }
 
-func (td *topicHandlers) getReqHandler(topic string) (opt.RequestHandler, bool) {
+func (td *requestHandlersMap) getReqHandler(topic string) (opt.RequestHandler, bool) {
 	td.lock.RLock()
 	defer td.lock.RUnlock()
 	rqhandle, ok := td.handlers[topic]
 	return rqhandle, ok
 }
 
-func (td *topicHandlers) removeAll() {
+func (td *requestHandlersMap) removeAll() {
+	td.lock.Lock()
+	defer td.lock.Unlock()
 	for k := range td.handlers {
 		delete(td.handlers, k)
 	}

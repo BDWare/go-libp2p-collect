@@ -13,6 +13,13 @@ import (
 	protocol "github.com/libp2p/go-libp2p-core/protocol"
 )
 
+// conf is the static configuration of relay pubsubcollector
+type conf struct {
+	requestProtocol  protocol.ID
+	responseProtocol protocol.ID
+	requestCacheSize int
+}
+
 // RelayPubSubCollector .
 type RelayPubSubCollector struct {
 	conf         *conf
@@ -74,8 +81,15 @@ func NewRelayPubSubCollector(h host.Host, options ...opt.InitOpt) (r *RelayPubSu
 
 // Join the overlay network defined by topic.
 // Register RequestHandle and ResponseHandle in opts.
-func (r *RelayPubSubCollector) Join(topic string, opts ...opt.JoinOpt) error {
-	panic("not implemented")
+func (r *RelayPubSubCollector) Join(topic string, opts ...opt.JoinOpt) (err error) {
+	var options *opt.JoinOpts
+	{
+		options, err = opt.NewJoinOptions(opts)
+	}
+	if err == nil {
+		err = r.apubsub.Subscribe(topic, r.topicHandle)
+	}
+
 }
 
 // Publish a serialized request. Request should be encasulated in data argument.
@@ -88,11 +102,8 @@ func (r *RelayPubSubCollector) Leave(topic string) error {
 	panic("not implemented")
 }
 
-// conf is the static configuration of relay pubsubcollector
-type conf struct {
-	requestProtocol  protocol.ID
-	responseProtocol protocol.ID
-	requestCacheSize int
+func (r *RelayPubSubCollector) topicHandle(topic string, msg *apsub.Message) {
+
 }
 
 func checkOptConfAndGetConf(optConf *opt.Conf) (c *conf, err error) {
@@ -115,5 +126,5 @@ func checkOptConfAndGetConf(optConf *opt.Conf) (c *conf, err error) {
 type tracer RelayPubSubCollector
 
 func (t *tracer) Trace(evt *pb.TraceEvent) {
-	
+
 }
