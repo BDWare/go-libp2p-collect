@@ -183,7 +183,7 @@ func (bpsc *BasicPubSubCollector) Close() error {
 }
 
 // topicHandle will be called when a request arrived.
-func (bpsc *BasicPubSubCollector) topicHandle(topic string, msg *pubsub.Message) {
+func (bpsc *BasicPubSubCollector) topicHandle(topic string, msg *Message) {
 	var (
 		err       error
 		ok        bool

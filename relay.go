@@ -85,7 +85,7 @@ func (r *RelayPubSubCollector) Leave(topic string) error {
 	panic("not implemented")
 }
 
-func (r *RelayPubSubCollector) topicHandle(topic string, msg *pubsub.Message) {
+func (r *RelayPubSubCollector) topicHandle(topic string, msg *Message) {
 
 }
 

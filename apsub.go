@@ -10,7 +10,10 @@ import (
 
 // TopicHandle is the handle function of subscription.
 // WARNING: DO NOT change msg, if a msg includes multiple topics, they share a message.
-type TopicHandle func(topic string, msg *pubsub.Message)
+type TopicHandle func(topic string, msg *Message)
+
+// Message is type alias
+type Message = pubsub.Message
 
 // AsyncPubSub encapsulates pubsub, provides async methods to get subscribe messages.
 // AsyncPubSub also manages the joined topics
