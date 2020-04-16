@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/rand"
-	"sync"
 	"sync/atomic"
 
 	"bdware.org/libp2p/go-libp2p-collect/pb"
@@ -78,7 +77,7 @@ func NewBasicPubSubCollector(h host.Host, opts ...Option) (bpsc *BasicPubSubColl
 		rcache, err = NewRequestCache(c.requestCacheSize)
 	}
 	if err == nil {
-		thandles = newTopicHandlers()
+		thandles = newRequestHandlerMap()
 	}
 	if err == nil {
 		bpsc = &BasicPubSubCollector{
@@ -311,53 +310,4 @@ func (bpsc *BasicPubSubCollector) handleResponse(resp *pb.Response) (err error) 
 		reqItem.RecvRecvHandle(resp)
 	}
 	return err
-}
-
-type requestHandlersMap struct {
-	lock     sync.RWMutex
-	handlers map[string]RequestHandler
-}
-
-func newTopicHandlers() *requestHandlersMap {
-	return &requestHandlersMap{
-		lock:     sync.RWMutex{},
-		handlers: make(map[string]RequestHandler),
-	}
-}
-
-func (td *requestHandlersMap) addOrReplaceReqHandler(topic string, rqhandle RequestHandler) {
-	td.lock.Lock()
-	defer td.lock.Unlock()
-	td.handlers[topic] = rqhandle
-}
-
-func (td *requestHandlersMap) addReqHandler(topic string, rqhandle RequestHandler) error {
-	td.lock.Lock()
-	defer td.lock.Unlock()
-	if _, ok := td.handlers[topic]; ok {
-		return fmt.Errorf("unexpected rqhandle exists")
-	}
-	td.handlers[topic] = rqhandle
-	return nil
-}
-
-func (td *requestHandlersMap) delReqHandler(topic string) {
-	td.lock.Lock()
-	defer td.lock.Unlock()
-	delete(td.handlers, topic)
-}
-
-func (td *requestHandlersMap) getReqHandler(topic string) (RequestHandler, bool) {
-	td.lock.RLock()
-	defer td.lock.RUnlock()
-	rqhandle, ok := td.handlers[topic]
-	return rqhandle, ok
-}
-
-func (td *requestHandlersMap) removeAll() {
-	td.lock.Lock()
-	defer td.lock.Unlock()
-	for k := range td.handlers {
-		delete(td.handlers, k)
-	}
 }
