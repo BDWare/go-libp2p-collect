@@ -2,6 +2,7 @@ package collect
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	pubsub "bdware.org/libp2p/go-libp2p-pubsub"
@@ -29,7 +30,7 @@ type topicitem struct {
 	name  string
 	topic *pubsub.Topic
 	// storage is useful to storage user-defined topic-related item
-	storage map[interface{}]interface{}
+	storage sync.Map
 	// ctxcancel is called to cancel context
 	ctxcancel func()
 	// subcancel is called to cancel subscription
@@ -147,7 +148,7 @@ func (ap *AsyncPubSub) Subscribe(topic string, handle TopicHandle) (err error) {
 	if !ok {
 		it = &topicitem{
 			name:      topic,
-			storage:   make(map[interface{}]interface{}),
+			storage:   sync.Map{},
 			subcancel: func() {},
 			ctxcancel: func() {},
 		}
@@ -216,4 +217,31 @@ func (ap *AsyncPubSub) forwardTopic(ctx context.Context, sub *pubsub.Subscriptio
 			break
 		}
 	}
+}
+
+// SetTopicItem .
+func (ap *AsyncPubSub) SetTopicItem(topic string, key interface{}, value interface{}) error {
+	ap.lock.Lock()
+	it, ok := ap.items[topic]
+	if !ok {
+		return fmt.Errorf("can not find topic %s", topic)
+	}
+	ap.lock.Unlock()
+	it.storage.Store(key, value)
+	return nil
+}
+
+// LoadTopicItem .
+func (ap *AsyncPubSub) LoadTopicItem(topic string, key interface{}) (value interface{}, err error) {
+	ap.lock.Lock()
+	it, ok := ap.items[topic]
+	if !ok {
+		return nil, fmt.Errorf("can not find topic %s", topic)
+	}
+	ap.lock.Unlock()
+	value, ok = it.storage.Load(key)
+	if !ok {
+		return nil, fmt.Errorf("can not find value in topic %s", topic)
+	}
+	return
 }
