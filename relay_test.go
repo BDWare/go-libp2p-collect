@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestSendRecv(t *testing.T) {
+func TestRelaySendRecv(t *testing.T) {
 	mnet := mock.NewMockNet()
 	pubhost, err := mnet.NewLinkedPeer()
 	assert.NoError(t, err)
