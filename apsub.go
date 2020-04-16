@@ -30,7 +30,7 @@ type topicitem struct {
 	name  string
 	topic *pubsub.Topic
 	// storage is useful to storage user-defined topic-related item
-	storage sync.Map
+	storage map[interface{}]interface{}
 	// ctxcancel is called to cancel context
 	ctxcancel func()
 	// subcancel is called to cancel subscription
@@ -148,7 +148,7 @@ func (ap *AsyncPubSub) Subscribe(topic string, handle TopicHandle) (err error) {
 	if !ok {
 		it = &topicitem{
 			name:      topic,
-			storage:   sync.Map{},
+			storage:   make(map[interface{}]interface{}),
 			subcancel: func() {},
 			ctxcancel: func() {},
 		}
@@ -221,25 +221,25 @@ func (ap *AsyncPubSub) forwardTopic(ctx context.Context, sub *pubsub.Subscriptio
 
 // SetTopicItem .
 func (ap *AsyncPubSub) SetTopicItem(topic string, key interface{}, value interface{}) error {
+	defer ap.lock.Unlock()
 	ap.lock.Lock()
 	it, ok := ap.items[topic]
 	if !ok {
 		return fmt.Errorf("can not find topic %s", topic)
 	}
-	ap.lock.Unlock()
-	it.storage.Store(key, value)
+	it.storage[key] = value
 	return nil
 }
 
 // LoadTopicItem .
 func (ap *AsyncPubSub) LoadTopicItem(topic string, key interface{}) (value interface{}, err error) {
-	ap.lock.Lock()
+	defer ap.lock.RUnlock()
+	ap.lock.RLock()
 	it, ok := ap.items[topic]
 	if !ok {
 		return nil, fmt.Errorf("can not find topic %s", topic)
 	}
-	ap.lock.Unlock()
-	value, ok = it.storage.Load(key)
+	value, ok = it.storage[key]
 	if !ok {
 		return nil, fmt.Errorf("can not find value in topic %s", topic)
 	}
