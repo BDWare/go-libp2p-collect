@@ -29,7 +29,6 @@ type BasicPubSubCollector struct {
 	// a wrapper of apsub system
 	apubsub *AsyncPubSub
 
-	reqHandlers *requestHandlersMap
 	// RequestCache is a cache of requests.
 	// We don't know when there is no incoming response for a certain request.
 	// We have to eliminate the out-dated request resource.
@@ -45,7 +44,6 @@ func NewBasicPubSubCollector(h host.Host, opts ...InitOpt) (bpsc *BasicPubSubCol
 		initopts *InitOpts
 		c        *conf
 		apubsub  *AsyncPubSub
-		thandles *requestHandlersMap
 		rcache   *requestCache
 	)
 	{
@@ -74,17 +72,13 @@ func NewBasicPubSubCollector(h host.Host, opts ...InitOpt) (bpsc *BasicPubSubCol
 		rcache, err = newRequestCache(c.requestCacheSize)
 	}
 	if err == nil {
-		thandles = newRequestHandlerMap()
-	}
-	if err == nil {
 		bpsc = &BasicPubSubCollector{
-			conf:        c,
-			seqno:       rand.Uint64(),
-			host:        h,
-			apubsub:     apubsub,
-			reqHandlers: thandles,
-			rcache:      rcache,
-			ridgen:      initopts.IDGenerator,
+			conf:    c,
+			seqno:   rand.Uint64(),
+			host:    h,
+			apubsub: apubsub,
+			rcache:  rcache,
+			ridgen:  initopts.IDGenerator,
 		}
 	}
 
@@ -106,7 +100,7 @@ func (bpsc *BasicPubSubCollector) Join(topic string, opts ...JoinOpt) (err error
 
 	// register request handler
 	if err == nil {
-		bpsc.reqHandlers.addOrReplaceReqHandler(topic, options.RequestHandler)
+		err = bpsc.apubsub.SetTopicItem(topic, requestHandlerKey, options.RequestHandler)
 	}
 
 	return
@@ -166,14 +160,12 @@ func (bpsc *BasicPubSubCollector) Publish(topic string, payload []byte, opts ...
 // The registered topichandles and responseHandlers will be closed.
 func (bpsc *BasicPubSubCollector) Leave(topic string) (err error) {
 	err = bpsc.apubsub.Unsubscribe(topic)
-	bpsc.reqHandlers.delReqHandler(topic)
 	bpsc.rcache.RemoveTopic(topic)
 	return
 }
 
 // Close the BasicPubSubCollector.
 func (bpsc *BasicPubSubCollector) Close() error {
-	bpsc.reqHandlers.removeAll()
 	bpsc.rcache.RemoveAll()
 	return bpsc.apubsub.Close()
 }
@@ -181,15 +173,16 @@ func (bpsc *BasicPubSubCollector) Close() error {
 // topicHandle will be called when a request arrived.
 func (bpsc *BasicPubSubCollector) topicHandle(topic string, msg *Message) {
 	var (
-		err       error
-		ok        bool
-		rqhandle  RequestHandler
-		rqresult  *pb.Intermediate
-		rqID      string
-		rootID    peer.ID
-		resp      *pb.Response
-		respBytes []byte
-		s         network.Stream
+		err         error
+		ok          bool
+		rqhandleRaw interface{}
+		rqhandle    RequestHandler
+		rqresult    *pb.Intermediate
+		rqID        string
+		rootID      peer.ID
+		resp        *pb.Response
+		respBytes   []byte
+		s           network.Stream
 	)
 	// unmarshal the received data into request struct
 	req := &pb.Request{}
@@ -199,11 +192,19 @@ func (bpsc *BasicPubSubCollector) topicHandle(topic string, msg *Message) {
 		rqID = bpsc.ridgen(req)
 		// Dispatch request to relative topic request handler,
 		// which should be initialized in join function
-		rqhandle, ok = bpsc.reqHandlers.getReqHandler(topic)
+		rqhandleRaw, err = bpsc.apubsub.LoadTopicItem(topic, requestHandlerKey)
+
+		if err != nil {
+			err = fmt.Errorf("cannot find request handler:%w", err)
+		}
 	}
-	if !ok {
-		err = fmt.Errorf("cannot find request handler for topic %s", topic)
+	if err == nil {
+		rqhandle, ok = rqhandleRaw.(RequestHandler)
+		if !ok {
+			err = fmt.Errorf("unexpected request handler type")
+		}
 	}
+
 	if err == nil {
 		// handle request
 		// TODO: add timeout

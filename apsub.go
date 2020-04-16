@@ -9,6 +9,10 @@ import (
 	host "github.com/libp2p/go-libp2p-core/host"
 )
 
+const (
+	requestHandlerKey = 'r'
+)
+
 // TopicHandle is the handle function of subscription.
 // WARNING: DO NOT change msg, if a msg includes multiple topics, they share a message.
 type TopicHandle func(topic string, msg *Message)

@@ -14,7 +14,6 @@ import (
 type RelayPubSubCollector struct {
 	conf         *conf
 	apubsub      *AsyncPubSub
-	reqHandlers  *requestHandlersMap
 	respCache    *responseCache
 	requestCache *requestCache
 }
@@ -44,7 +43,6 @@ func NewRelayPubSubCollector(h host.Host, options ...InitOpt) (r *RelayPubSubCol
 	if err == nil {
 		r = &RelayPubSubCollector{
 			conf:         conf,
-			reqHandlers:  newRequestHandlerMap(),
 			requestCache: reqCache,
 			respCache:    respCache,
 		}
