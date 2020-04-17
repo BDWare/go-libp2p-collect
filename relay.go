@@ -2,7 +2,6 @@ package collect
 
 import (
 	"context"
-	"fmt"
 
 	host "github.com/libp2p/go-libp2p-core/host"
 	protocol "github.com/libp2p/go-libp2p-core/protocol"
@@ -101,23 +100,6 @@ func (r *RelayPubSubCollector) Leave(topic string) error {
 
 func (r *RelayPubSubCollector) topicHandle(topic string, msg *Message) {
 
-}
-
-func checkOptConfAndGetConf(optConf *Conf) (c *conf, err error) {
-	if optConf.ProtocolPrefix == "" {
-		err = fmt.Errorf("unexpected nil Prefix")
-	}
-	if optConf.RequestCacheSize < 0 {
-		err = fmt.Errorf("unexpected negetive RequestBufSize")
-	}
-	if err == nil {
-		c = &conf{
-			requestProtocol:  protocol.ID(optConf.ProtocolPrefix + "/relay/request"),
-			responseProtocol: protocol.ID(optConf.ProtocolPrefix + "/relay/response"),
-			requestCacheSize: optConf.RequestCacheSize,
-		}
-	}
-	return
 }
 
 type tracer RelayPubSubCollector
