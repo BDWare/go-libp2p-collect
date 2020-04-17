@@ -4,25 +4,25 @@ import (
 	lru "github.com/hashicorp/golang-lru"
 )
 
-// RequestCache .
-// RequestCache is used to store the request control message,
+// requestCache .
+// requestCache is used to store the request control message,
 // which is for response routing.
 type requestCache struct {
 	cache *lru.Cache
 }
 
-// ReqItem .
-type ReqItem struct {
-	RecvRecvHandle FinalRespHandler
-	Topic          string
-	Cancel         func()
+// reqstItem .
+type reqItem struct {
+	finalHandler FinalRespHandler
+	topic        string
+	cancel       func()
 }
 
 // callback when a request is evicted.
 func onReqCacheEvict(key interface{}, value interface{}) {
 	// cancel context
-	item := value.(*ReqItem)
-	item.Cancel()
+	item := value.(*reqItem)
+	item.cancel()
 	// TODO: add logging
 }
 
@@ -35,8 +35,8 @@ func newRequestCache(size int) (*requestCache, error) {
 }
 
 // AddReqItem .
-func (rc *requestCache) AddReqItem(reqid string, reqItem *ReqItem) {
-	rc.cache.Add(reqid, reqItem)
+func (rc *requestCache) AddReqItem(reqid string, item *reqItem) {
+	rc.cache.Add(reqid, item)
 }
 
 // RemoveReqItem .
@@ -45,10 +45,10 @@ func (rc *requestCache) RemoveReqItem(reqid string) {
 }
 
 // GetReqItem .
-func (rc *requestCache) GetReqItem(reqid string) (out *ReqItem, ok bool) {
+func (rc *requestCache) GetReqItem(reqid string) (out *reqItem, ok bool) {
 	var v interface{}
 	v, ok = rc.cache.Get(reqid)
-	out, ok = v.(*ReqItem)
+	out, ok = v.(*reqItem)
 	return
 }
 
@@ -56,8 +56,8 @@ func (rc *requestCache) GetReqItem(reqid string) (out *ReqItem, ok bool) {
 func (rc *requestCache) RemoveTopic(topic string) {
 	for _, k := range rc.cache.Keys() {
 		if v, ok := rc.cache.Peek(k); ok {
-			item := v.(*ReqItem)
-			if item.Topic == topic {
+			item := v.(*reqItem)
+			if item.topic == topic {
 				rc.cache.Remove(k)
 			}
 		}
@@ -75,8 +75,8 @@ type responseCache struct {
 	cache *lru.Cache
 }
 
-// ResponseItem .
-type ResponseItem struct {
+// respItem .
+type respItem struct {
 }
 
 // newResponseCache .

@@ -133,10 +133,10 @@ func (bpsc *BasicPubSubCollector) Publish(topic string, payload []byte, opts ...
 		options = NewPublishOptions(opts)
 
 		// register notif handler
-		bpsc.rcache.AddReqItem(rqID, &ReqItem{
-			RecvRecvHandle: options.FinalRespHandle,
-			Topic:          topic,
-			Cancel:         options.Cancel,
+		bpsc.rcache.AddReqItem(rqID, &reqItem{
+			finalHandler: options.FinalRespHandle,
+			topic:        topic,
+			cancel:       options.Cancel,
 		})
 
 		// add stream handler when responses return
@@ -239,9 +239,9 @@ func (bpsc *BasicPubSubCollector) topicHandle(topic string, msg *Message) {
 
 		// send payload
 		ctx, cc := context.WithCancel(context.Background())
-		bpsc.rcache.AddReqItem(rqID, &ReqItem{
-			Topic:  topic,
-			Cancel: cc,
+		bpsc.rcache.AddReqItem(rqID, &reqItem{
+			topic:  topic,
+			cancel: cc,
 		})
 		// clean up later
 		defer bpsc.rcache.RemoveReqItem(rqID)
@@ -290,22 +290,22 @@ func (bpsc *BasicPubSubCollector) handleResponseBytes(respBytes []byte) (err err
 // handleResponse calls notifHandler
 func (bpsc *BasicPubSubCollector) handleResponse(resp *pb.Response) (err error) {
 	var (
-		reqID   string
-		reqItem *ReqItem
-		ok      bool
+		reqID string
+		item  *reqItem
+		ok    bool
 	)
 	if resp == nil {
 		err = fmt.Errorf("unexpect nil response")
 	}
 	if err == nil {
 		reqID = resp.Control.RequestId
-		reqItem, ok = bpsc.rcache.GetReqItem(reqID)
+		item, ok = bpsc.rcache.GetReqItem(reqID)
 		if !ok {
 			err = fmt.Errorf("cannot find reqitem for request %s", reqID)
 		}
 	}
 	if err == nil {
-		reqItem.RecvRecvHandle(resp)
+		item.finalHandler(resp)
 	}
 	return err
 }
