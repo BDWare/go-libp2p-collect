@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	pubsub "bdware.org/libp2p/go-libp2p-pubsub"
-	pb "bdware.org/libp2p/go-libp2p-pubsub/pb"
 	host "github.com/libp2p/go-libp2p-core/host"
 	protocol "github.com/libp2p/go-libp2p-core/protocol"
+	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	pb "github.com/libp2p/go-libp2p-pubsub/pb"
 )
 
 // RelayPubSubCollector .

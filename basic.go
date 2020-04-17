@@ -8,11 +8,11 @@ import (
 	"sync/atomic"
 
 	"bdware.org/libp2p/go-libp2p-collect/pb"
-	pubsub "bdware.org/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/protocol"
+	pubsub "github.com/libp2p/go-libp2p-pubsub"
 )
 
 // BasicPubSubCollector implements of psc.BasicPubSubCollector Interface.
