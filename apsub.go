@@ -10,7 +10,8 @@ import (
 )
 
 const (
-	requestHandlerKey = 'r'
+	requestHandlerKey  = 'q'
+	responseHandlerKey = 'p'
 )
 
 // TopicHandle is the handle function of subscription.

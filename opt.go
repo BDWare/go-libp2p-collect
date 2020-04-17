@@ -82,7 +82,8 @@ type JoinOpts struct {
 // NewJoinOptions returns an option collection
 func NewJoinOptions(opts []JoinOpt) (out *JoinOpts, err error) {
 	out = &JoinOpts{
-		RequestHandler: defaultRequestHandler,
+		RequestHandler:  defaultRequestHandler,
+		ResponseHandler: defaultResponseHandler,
 	}
 	for _, opt := range opts {
 		if err == nil {
@@ -105,11 +106,6 @@ func WithRequestHandler(rqhandle RequestHandler) JoinOpt {
 	}
 }
 
-// WithRequestCacheSize .
-func WithRequestCacheSize(n uint) JoinOpt {
-	panic("not implemented")
-}
-
 func defaultRequestHandler(context.Context, *pb.Request) *pb.Intermediate {
 	return &pb.Intermediate{
 		Sendback: false,
@@ -126,6 +122,13 @@ func WithResponseHandler(handler ResponseHandler) JoinOpt {
 	return func(opts *JoinOpts) error {
 		opts.ResponseHandler = handler
 		return nil
+	}
+}
+
+func defaultResponseHandler(context.Context, *pb.Response) *pb.Intermediate {
+	return &pb.Intermediate{
+		Sendback: true,
+		Payload:  []byte{},
 	}
 }
 
