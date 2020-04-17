@@ -141,6 +141,28 @@ func TestReSubcription(t *testing.T) {
 	}
 }
 
+func TestDoubleSlowPublish(t *testing.T) {
+	mnet := mock.NewMockNet()
+	pubhost, err := mnet.NewLinkedPeer()
+	assert.NoError(t, err)
+
+	pub, err := NewAsyncPubSub(pubhost)
+	assert.NoError(t, err)
+
+	// wait for discovery
+	time.Sleep(50 * time.Millisecond)
+
+	expecttopic := "test-topic"
+	expectdata := []byte{1, 2, 3}
+
+	err = pub.Publish(context.TODO(), expecttopic, expectdata)
+	assert.NoError(t, err)
+
+	err = pub.Publish(context.TODO(), expecttopic, expectdata)
+	assert.NoError(t, err)
+
+}
+
 func TestGetAndSetItem(t *testing.T) {
 	mnet := mock.NewMockNet()
 	pubhost, err := mnet.NewLinkedPeer()

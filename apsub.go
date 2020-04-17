@@ -107,6 +107,9 @@ func (ap *AsyncPubSub) Close() error {
 
 // Publish a message with given topic
 func (ap *AsyncPubSub) Publish(ctx context.Context, topic string, data []byte) (err error) {
+	defer ap.lock.RUnlock()
+	/*_*/ ap.lock.RLock()
+	// lock here to avoid unexpected join in slow publish
 	var ok bool
 	if err == nil {
 		ok, err = ap.fastPublish(ctx, topic, data)
@@ -118,9 +121,6 @@ func (ap *AsyncPubSub) Publish(ctx context.Context, topic string, data []byte) (
 }
 
 func (ap *AsyncPubSub) fastPublish(ctx context.Context, topic string, data []byte) (ok bool, err error) {
-	defer ap.lock.RUnlock()
-	/*_*/ ap.lock.RLock()
-
 	var it *topicitem
 	it, ok = ap.items[topic]
 	if ok {
@@ -129,16 +129,15 @@ func (ap *AsyncPubSub) fastPublish(ctx context.Context, topic string, data []byt
 	return
 }
 
+// we assume the given topic is not joint yet.
+// after the message is published, quit the topic.
 func (ap *AsyncPubSub) slowPublish(ctx context.Context, topic string, data []byte) (err error) {
-	defer ap.lock.Unlock()
-	/*_*/ ap.lock.Lock()
-
 	var t *pubsub.Topic
 	t, err = ap.pubs.Join(topic)
 	if err == nil {
+		defer t.Close()
 		err = t.Publish(ctx, data)
 	}
-
 	return
 }
 
@@ -248,4 +247,14 @@ func (ap *AsyncPubSub) LoadTopicItem(topic string, key interface{}) (value inter
 		return nil, fmt.Errorf("can not find value in topic %s", topic)
 	}
 	return
+}
+
+// Topics returns the subscribed topics
+func (ap *AsyncPubSub) Topics() (out []string) {
+	defer ap.lock.RUnlock()
+	ap.lock.RLock()
+	for k := range ap.items {
+		out = append(out, k)
+	}
+	return out
 }
