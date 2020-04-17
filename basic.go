@@ -80,6 +80,9 @@ func NewBasicPubSubCollector(h host.Host, options ...InitOpt) (bpsc *BasicPubSub
 			reqCache: reqCache,
 			ridgen:   opts.IDGenerator,
 		}
+
+		// add stream handler when responses return
+		bpsc.host.SetStreamHandler(bpsc.conf.responseProtocol, bpsc.streamHandler)
 	}
 
 	return
@@ -138,9 +141,6 @@ func (bpsc *BasicPubSubCollector) Publish(topic string, payload []byte, opts ...
 			topic:        topic,
 			cancel:       options.Cancel,
 		})
-
-		// add stream handler when responses return
-		bpsc.host.SetStreamHandler(bpsc.conf.responseProtocol, bpsc.streamHandler)
 
 		//  publish marshaled request
 		err = bpsc.apsub.Publish(options.RequestContext, topic, tosend)
