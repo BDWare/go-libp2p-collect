@@ -233,7 +233,7 @@ func (bpsc *BasicPubSubCollector) topicHandle(topic string, msg *Message) {
 
 		// receive self-published message
 		if rootID == bpsc.host.ID() {
-			bpsc.handleResponse(resp)
+			bpsc.handleFinalResponse(resp)
 			goto end
 		}
 
@@ -282,13 +282,13 @@ func (bpsc *BasicPubSubCollector) handleResponseBytes(respBytes []byte) (err err
 		err = resp.Unmarshal(respBytes)
 	}
 	if err == nil {
-		err = bpsc.handleResponse(resp)
+		err = bpsc.handleFinalResponse(resp)
 	}
 	return
 }
 
-// handleResponse calls notifHandler
-func (bpsc *BasicPubSubCollector) handleResponse(resp *pb.Response) (err error) {
+// handleFinalResponse calls finalResponseHandler
+func (bpsc *BasicPubSubCollector) handleFinalResponse(resp *pb.Response) (err error) {
 	var (
 		reqID string
 		item  *reqItem
