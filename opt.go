@@ -143,17 +143,17 @@ type PubOpts struct {
 }
 
 // NewPublishOptions returns an option collection
-func NewPublishOptions(opts []PubOpt) (out *PubOpts) {
-	out = &PubOpts{}
+func NewPublishOptions(opts []PubOpt) (out *PubOpts, err error) {
+	ctx, cc := context.WithCancel(context.Background())
+	out = &PubOpts{
+		RequestContext:  ctx,
+		FinalRespHandle: func(context.Context, *pb.Response) {},
+		Cancel:          cc,
+	}
 	for _, opt := range opts {
-		opt(out)
-	}
-	// set default value
-	if out.RequestContext == nil {
-		out.RequestContext, out.Cancel = context.WithCancel(context.Background())
-	}
-	if out.FinalRespHandle == nil {
-		out.FinalRespHandle = func(*pb.Response) {}
+		if err == nil {
+			err = opt(out)
+		}
 	}
 	return
 }
@@ -161,7 +161,7 @@ func NewPublishOptions(opts []PubOpt) (out *PubOpts) {
 // FinalRespHandler is the callback function when the root node receiving a response.
 // It will be called only in the root node.
 // It will be called more than one time when the number of responses is larger than one.
-type FinalRespHandler func(rp *pb.Response)
+type FinalRespHandler func(context.Context, *pb.Response)
 
 // WithFinalRespHandler registers notifHandler
 func WithFinalRespHandler(handler FinalRespHandler) PubOpt {
