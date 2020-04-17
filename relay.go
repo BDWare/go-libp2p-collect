@@ -72,6 +72,20 @@ func NewRelayPubSubCollector(h host.Host, options ...InitOpt) (r *RelayPubSubCol
 // Join the overlay network defined by topic.
 // Register RequestHandle and ResponseHandle in opts.
 func (r *RelayPubSubCollector) Join(topic string, opts ...JoinOpt) (err error) {
+	var options *JoinOpts
+	{
+		options, err = NewJoinOptions(opts)
+	}
+	// subscribe the topic
+	if err == nil {
+		err = r.apubsub.Subscribe(topic, r.topicHandle)
+	}
+
+	// register request handler
+	if err == nil {
+		err = r.apubsub.SetTopicItem(topic, requestHandlerKey, options.RequestHandler)
+	}
+
 	return
 }
 
