@@ -15,6 +15,7 @@ type requestCache struct {
 type reqItem struct {
 	finalHandler FinalRespHandler
 	topic        string
+	msg          *Message
 	cancel       func()
 }
 

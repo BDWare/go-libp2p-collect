@@ -63,7 +63,7 @@ func TestRelaySendRecv(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	okch := make(chan struct{})
-	notif := func(rp *pb.Response) {
+	notif := func(ctx context.Context, rp *pb.Response) {
 		assert.Equal(t, payload, rp.Payload)
 		okch <- struct{}{}
 	}

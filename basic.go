@@ -117,14 +117,18 @@ func (bpsc *BasicPubSubCollector) Publish(topic string, payload []byte, opts ...
 		options *PubOpts
 		tosend  []byte
 	)
-	// assemble the request struct
-	root, err = bpsc.host.ID().MarshalBinary()
+	{
+		options, err = NewPublishOptions(opts)
+	}
 	if err == nil {
-		seq := atomic.AddUint64(&(bpsc.seqno), 1)
+		// assemble the request struct
+		root, err = bpsc.host.ID().MarshalBinary()
+	}
+	if err == nil {
 		req := &pb.Request{
 			Control: pb.RequestControl{
 				Root:  root,
-				Seqno: seq,
+				Seqno: atomic.AddUint64(&(bpsc.seqno), 1),
 			},
 			Payload: payload,
 		}
@@ -133,7 +137,6 @@ func (bpsc *BasicPubSubCollector) Publish(topic string, payload []byte, opts ...
 		tosend, err = req.Marshal()
 	}
 	if err == nil {
-		options = NewPublishOptions(opts)
 
 		// register notif handler
 		bpsc.reqCache.AddReqItem(rqID, &reqItem{
@@ -175,6 +178,7 @@ func (bpsc *BasicPubSubCollector) topicHandle(topic string, msg *Message) {
 	var (
 		err         error
 		ok          bool
+		req         *pb.Request
 		rqhandleRaw interface{}
 		rqhandle    RequestHandler
 		rqresult    *pb.Intermediate
@@ -183,39 +187,48 @@ func (bpsc *BasicPubSubCollector) topicHandle(topic string, msg *Message) {
 		resp        *pb.Response
 		respBytes   []byte
 		s           network.Stream
+		ctx         context.Context
+		cc          func()
 	)
-	// unmarshal the received data into request struct
-	req := &pb.Request{}
-	err = req.Unmarshal(msg.Data)
-
-	if err == nil {
+	{
+		ctx, cc = context.WithCancel(context.Background())
 		rqID = bpsc.ridgen(req)
+		bpsc.reqCache.AddReqItem(rqID, &reqItem{
+			topic:  topic,
+			cancel: cc,
+		})
+		// clean up later
+		defer bpsc.reqCache.RemoveReqItem(rqID)
+	}
+	{
+		// unmarshal the received data into request struct
+		req = &pb.Request{}
+		err = req.Unmarshal(msg.Data)
+	}
+	if err == nil {
 		// Dispatch request to relative topic request handler,
 		// which should be initialized in join function
 		rqhandleRaw, err = bpsc.apsub.LoadTopicItem(topic, requestHandlerKey)
-
 		if err != nil {
 			err = fmt.Errorf("cannot find request handler:%w", err)
+		} else {
+			rqhandle, ok = rqhandleRaw.(RequestHandler)
 		}
-	}
-	if err == nil {
-		rqhandle, ok = rqhandleRaw.(RequestHandler)
-		if !ok {
+		if err == nil && !ok {
 			err = fmt.Errorf("unexpected request handler type")
 		}
 	}
 
 	if err == nil {
 		// handle request
-		// TODO: add timeout
-		rqresult = rqhandle(context.Background(), req)
+		rqresult = rqhandle(ctx, req)
 
 		// After request is processed, we will have a Intermediate.
 		// We send the response to the root node directly if sendback is set to true.
 		// Another protocol will be used to inform the root node.
 		if !rqresult.Sendback {
 			// drop any response if sendback is false
-			goto end
+			return
 		}
 
 		// assemble the response
@@ -234,17 +247,9 @@ func (bpsc *BasicPubSubCollector) topicHandle(topic string, msg *Message) {
 		// receive self-published message
 		if rootID == bpsc.host.ID() {
 			bpsc.handleFinalResponse(resp)
-			goto end
+			return
 		}
 
-		// send payload
-		ctx, cc := context.WithCancel(context.Background())
-		bpsc.reqCache.AddReqItem(rqID, &reqItem{
-			topic:  topic,
-			cancel: cc,
-		})
-		// clean up later
-		defer bpsc.reqCache.RemoveReqItem(rqID)
 		s, err = bpsc.host.NewStream(ctx, rootID, bpsc.conf.responseProtocol)
 
 	}
@@ -254,8 +259,6 @@ func (bpsc *BasicPubSubCollector) topicHandle(topic string, msg *Message) {
 		defer s.Close()
 		_, err = s.Write(respBytes)
 	}
-end:
-	//TODO: check error and logging
 }
 
 // streamHandler reads response from stream, and calls related notifHandler
@@ -305,7 +308,8 @@ func (bpsc *BasicPubSubCollector) handleFinalResponse(resp *pb.Response) (err er
 		}
 	}
 	if err == nil {
-		item.finalHandler(resp)
+		// TODO: add context
+		item.finalHandler(context.TODO(), resp)
 	}
 	return err
 }

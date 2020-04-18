@@ -64,7 +64,7 @@ func TestBasicSendRecv(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	okch := make(chan struct{})
-	notif := func(rp *pb.Response) {
+	notif := func(ctx context.Context, rp *pb.Response) {
 		assert.Equal(t, payload, rp.Payload)
 		okch <- struct{}{}
 	}
@@ -152,7 +152,7 @@ func TestBasicSendRecv(t *testing.T) {
 // 	time.Sleep(50 * time.Millisecond)
 
 // 	cnt := uint32(0)
-// 	notif := func(rp *pb.Response) {
+// 	notif := func(ctx context.Context, rp *pb.Response) {
 // 		atomic.AddUint32(&cnt, 1)
 // 	}
 
@@ -255,7 +255,7 @@ func TestLeaveAndJoin(t *testing.T) {
 
 	okch := make(chan struct{})
 
-	notifOK := func(rp *pb.Response) {
+	notifOK := func(ctx context.Context, rp *pb.Response) {
 		assert.Equal(t, payload, rp.Payload)
 		okch <- struct{}{}
 	}
@@ -274,7 +274,7 @@ func TestLeaveAndJoin(t *testing.T) {
 	assert.NoError(t, err)
 	time.Sleep(10 * time.Millisecond)
 
-	notifFail := func(rp *pb.Response) {
+	notifFail := func(ctx context.Context, rp *pb.Response) {
 		assert.FailNow(t, "should not recv message")
 	}
 	err = pub.Publish(topic, payload, WithFinalRespHandler(notifFail))
@@ -328,7 +328,7 @@ func TestSelfNotif(t *testing.T) {
 	assert.NoError(t, err)
 
 	okch := make(chan struct{})
-	notif := func(rp *pb.Response) {
+	notif := func(ctx context.Context, rp *pb.Response) {
 		assert.Equal(t, payload, rp.Payload)
 		okch <- struct{}{}
 	}
@@ -384,7 +384,7 @@ func TestRejoin(t *testing.T) {
 	assert.NoError(t, err)
 
 	okch := make(chan struct{})
-	notif := func(rp *pb.Response) {
+	notif := func(ctx context.Context, rp *pb.Response) {
 		assert.Equal(t, another, rp.Payload)
 		okch <- struct{}{}
 	}
