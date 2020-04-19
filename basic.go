@@ -296,7 +296,7 @@ func (bpsc *BasicPubSubCollector) handleFinalResponse(resp *pb.Response) (err er
 	}
 	if err == nil {
 		reqID = resp.Control.RequestId
-		item, ok = bpsc.reqCache.GetReqItem(reqID)
+		item, ok, _ = bpsc.reqCache.GetReqItem(reqID)
 		if !ok {
 			err = fmt.Errorf("cannot find reqitem for request %s", reqID)
 		}

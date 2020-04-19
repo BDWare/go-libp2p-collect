@@ -202,7 +202,7 @@ func (r *RelayPubSubCollector) topicHandle(topic string, msg *Message) {
 	if err == nil {
 		// send payload
 		ctx = context.Background()
-		item, ok = r.reqCache.GetReqItem(rqID)
+		item, ok, _ = r.reqCache.GetReqItem(rqID)
 		if !ok {
 			item = &reqItem{
 				finalHandler: func(context.Context, *pb.Response) {},
@@ -277,7 +277,7 @@ func (r *RelayPubSubCollector) handleAndForwardResponse(ctx context.Context, rec
 		ok    bool
 	)
 	reqID = recv.Control.RequestId
-	item, ok = r.reqCache.GetReqItem(reqID)
+	item, ok, _ = r.reqCache.GetReqItem(reqID)
 	if !ok {
 		err = fmt.Errorf("cannot find reqItem for response ID: %s", reqID)
 	}
@@ -313,7 +313,7 @@ func (r *RelayPubSubCollector) handleFinalResponse(ctx context.Context, recv *pb
 		ok    bool
 	)
 	reqID = recv.Control.RequestId
-	item, ok = r.reqCache.GetReqItem(reqID)
+	item, ok, _ = r.reqCache.GetReqItem(reqID)
 	if !ok {
 		err = fmt.Errorf("cannot find reqItem for response ID: %s", reqID)
 	}
