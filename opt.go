@@ -139,16 +139,13 @@ type PubOpt func(*PubOpts) error
 type PubOpts struct {
 	RequestContext  context.Context
 	FinalRespHandle FinalRespHandler
-	Cancel          func()
 }
 
 // NewPublishOptions returns an option collection
 func NewPublishOptions(opts []PubOpt) (out *PubOpts, err error) {
-	ctx, cc := context.WithCancel(context.Background())
 	out = &PubOpts{
-		RequestContext:  ctx,
+		RequestContext:  context.TODO(),
 		FinalRespHandle: func(context.Context, *pb.Response) {},
-		Cancel:          cc,
 	}
 	for _, opt := range opts {
 		if err == nil {
@@ -175,7 +172,7 @@ func WithFinalRespHandler(handler FinalRespHandler) PubOpt {
 // default is withCancel. (ctx will be cancelled when request is closed)
 func WithRequestContext(ctx context.Context) PubOpt {
 	return func(pubopts *PubOpts) error {
-		pubopts.RequestContext, pubopts.Cancel = context.WithCancel(ctx)
+		pubopts.RequestContext = ctx
 		return nil
 	}
 }

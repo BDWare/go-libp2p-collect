@@ -3,6 +3,9 @@ package collect
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
+	"math/rand"
+	"sync/atomic"
 
 	"bdware.org/libp2p/go-libp2p-collect/pb"
 	"github.com/libp2p/go-libp2p-core/host"
@@ -13,14 +16,22 @@ import (
 	pubsub_pb "github.com/libp2p/go-libp2p-pubsub/pb"
 )
 
+type deduplicator interface {
+	// markSeen returns false if resp has been seen;
+	// return true if resp hasn't been seen before.
+	// The response will be marked seen after markSeen callation.
+	markSeen(resp *pb.Response) bool
+}
+
 // RelayPubSubCollector .
 type RelayPubSubCollector struct {
-	conf      *conf
-	host      host.Host
-	apubsub   *AsyncPubSub
-	respCache *responseCache
-	reqCache  *requestCache
-	ridgen    ReqIDGenerator
+	conf     *conf
+	host     host.Host
+	seqno    uint64
+	apubsub  *AsyncPubSub
+	reqCache *requestCache
+	dedup    deduplicator
+	ridgen   ReqIDGenerator
 }
 
 // NewRelayPubSubCollector .
@@ -47,11 +58,12 @@ func NewRelayPubSubCollector(h host.Host, options ...InitOpt) (r *RelayPubSubCol
 	}
 	if err == nil {
 		r = &RelayPubSubCollector{
-			conf:      conf,
-			host:      h,
-			reqCache:  reqCache,
-			respCache: respCache,
-			ridgen:    opts.IDGenerator,
+			conf:     conf,
+			host:     h,
+			seqno:    rand.Uint64(),
+			reqCache: reqCache,
+			dedup:    respCache,
+			ridgen:   opts.IDGenerator,
 		}
 		ap, err = NewAsyncPubSub(
 			h,
@@ -68,7 +80,7 @@ func NewRelayPubSubCollector(h host.Host, options ...InitOpt) (r *RelayPubSubCol
 	}
 	if err == nil {
 		r.apubsub = ap
-		r.host.SetStreamHandler(r.conf.responseProtocol, r.streamHandler)
+		r.host.SetStreamHandler(r.conf.responseProtocol, r.responseStreamHandler)
 
 	} else { // err != nil
 		r = nil
@@ -102,32 +114,70 @@ func (r *RelayPubSubCollector) Join(topic string, options ...JoinOpt) (err error
 }
 
 // Publish a serialized request. Request should be encasulated in data argument.
-func (r *RelayPubSubCollector) Publish(topic string, data []byte, opts ...PubOpt) error {
-	panic("not implemented")
+func (r *RelayPubSubCollector) Publish(topic string, data []byte, opts ...PubOpt) (err error) {
+	var (
+		root    []byte
+		rqID    string
+		options *PubOpts
+		tosend  []byte
+	)
+	{
+		options, err = NewPublishOptions(opts)
+	}
+	if err == nil {
+		// assemble the request struct
+		root, err = r.host.ID().MarshalBinary()
+	}
+	if err == nil {
+		req := &pb.Request{
+			Control: pb.RequestControl{
+				Root:  root,
+				Seqno: atomic.AddUint64(&(r.seqno), 1),
+			},
+			Payload: data,
+		}
+		rqID = r.ridgen(req)
+
+		tosend, err = req.Marshal()
+	}
+	if err == nil {
+		// register notif handler
+		r.reqCache.AddReqItem(options.RequestContext, rqID, &reqItem{
+			finalHandler: options.FinalRespHandle,
+			topic:        topic,
+		})
+
+		//  publish marshaled request
+		err = r.apubsub.Publish(options.RequestContext, topic, tosend)
+
+	}
+	return
 }
 
 // Leave the overlay
-func (r *RelayPubSubCollector) Leave(topic string) error {
-	panic("not implemented")
+func (r *RelayPubSubCollector) Leave(topic string) (err error) {
+	err = r.apubsub.Unsubscribe(topic)
+	r.reqCache.RemoveTopic(topic)
+	return
 }
 
 func (r *RelayPubSubCollector) topicHandle(topic string, msg *Message) {
+
 	var (
-		err         error
+		req *pb.Request
+		err error
+	)
+	{
+		// unmarshal the received data into request struct
+		req = &pb.Request{}
+		err = req.Unmarshal(msg.Data)
+	}
+	var (
 		ok          bool
 		rqhandleRaw interface{}
 		rqhandle    RequestHandler
-		rqresult    *pb.Intermediate
 		rqID        string
-		fromID      peer.ID
-		resp        *pb.Response
-		respBytes   []byte
-		s           network.Stream
 	)
-	// unmarshal the received data into request struct
-	req := &pb.Request{}
-	err = req.Unmarshal(msg.Data)
-
 	if err == nil {
 		rqID = r.ridgen(req)
 		// Dispatch request to relative topic request handler,
@@ -136,19 +186,37 @@ func (r *RelayPubSubCollector) topicHandle(topic string, msg *Message) {
 
 		if err != nil {
 			err = fmt.Errorf("cannot find request handler:%w", err)
-		}
-	}
-	if err == nil {
-		rqhandle, ok = rqhandleRaw.(RequestHandler)
-		if !ok {
-			err = fmt.Errorf("unexpected request handler type")
+		} else {
+			rqhandle, ok = rqhandleRaw.(RequestHandler)
+			if !ok {
+				err = fmt.Errorf("unexpected request handler type")
+			}
 		}
 	}
 
+	var (
+		item *reqItem
+		resp *pb.Response
+		ctx  context.Context
+	)
 	if err == nil {
+		// send payload
+		ctx = context.Background()
+		item, ok = r.reqCache.GetReqItem(rqID)
+		if !ok {
+			item = &reqItem{
+				finalHandler: func(context.Context, *pb.Response) {},
+				topic:        topic,
+				msg:          msg,
+			}
+			r.reqCache.AddReqItem(ctx, rqID, item)
+		} else {
+			item.msg = msg
+		}
+
 		// handle request
 		// TODO: add timeout
-		rqresult = rqhandle(context.Background(), req)
+		rqresult := rqhandle(ctx, req)
 
 		// After request is processed, we will have a Intermediate.
 		// We send the response to the root node directly if sendback is set to true.
@@ -167,50 +235,92 @@ func (r *RelayPubSubCollector) topicHandle(topic string, msg *Message) {
 			},
 			Payload: rqresult.Payload,
 		}
-		respBytes, err = resp.Marshal()
-	}
-	if err == nil {
-		// find the from peer_id
-		fromID = peer.ID(req.Control.From)
 
 		// receive self-published message
-		if fromID == r.host.ID() {
-			r.handleResponse(resp)
-			return
+		if peer.ID(req.Control.Root) == r.host.ID() {
+			r.handleFinalResponse(ctx, resp)
+		} else {
+			r.handleAndForwardResponse(ctx, resp)
 		}
 
-		// send payload
-		ctx, cc := context.WithCancel(context.Background())
-		r.reqCache.AddReqItem(rqID, &reqItem{
-			topic:  topic,
-			cancel: cc,
-		})
-		// clean up later
-		defer r.reqCache.RemoveReqItem(rqID)
-		s, err = r.host.NewStream(ctx, fromID, r.conf.responseProtocol)
-
 	}
-	// everything is done, send payload by write to stream
+
+	return
+}
+
+func (r *RelayPubSubCollector) responseStreamHandler(s network.Stream) {
+	var (
+		respBytes []byte
+		err       error
+		resp      *pb.Response
+	)
+	respBytes, err = ioutil.ReadAll(s)
+	s.Close()
 	if err == nil {
-		// don't forget to close the stream
-		defer s.Close()
-		_, err = s.Write(respBytes)
+		resp = &pb.Response{}
+		err = resp.Unmarshal(respBytes)
+	}
+	if err == nil {
+		if peer.ID(resp.Control.Root) == r.host.ID() {
+			err = r.handleFinalResponse(context.Background(), resp)
+		} else {
+			err = r.handleAndForwardResponse(context.Background(), resp)
+		}
+	}
+}
+
+func (r *RelayPubSubCollector) handleAndForwardResponse(ctx context.Context, recv *pb.Response) (err error) {
+	// check response cache, deduplicate and forward
+	var (
+		reqID string
+		item  *reqItem
+		ok    bool
+	)
+	reqID = recv.Control.RequestId
+	item, ok = r.reqCache.GetReqItem(reqID)
+	if !ok {
+		err = fmt.Errorf("cannot find reqItem for response ID: %s", reqID)
+	}
+
+	var (
+		s         network.Stream
+		respBytes []byte
+		from      peer.ID
+	)
+	if err == nil && r.dedup.markSeen(recv) {
+		// send back the first seen response
+		{
+			respBytes, err = recv.Marshal()
+		}
+		if err == nil {
+			from = peer.ID(item.msg.From)
+			s, err = r.host.NewStream(context.Background(), from, r.conf.responseProtocol)
+		}
+		if err == nil {
+			defer s.Close()
+			_, err = s.Write(respBytes)
+		}
 	}
 
 	return
 }
 
-func (r *RelayPubSubCollector) streamHandler(s network.Stream) {
+// only called in root node
+func (r *RelayPubSubCollector) handleFinalResponse(ctx context.Context, recv *pb.Response) (err error) {
+	var (
+		reqID string
+		item  *reqItem
+		ok    bool
+	)
+	reqID = recv.Control.RequestId
+	item, ok = r.reqCache.GetReqItem(reqID)
+	if !ok {
+		err = fmt.Errorf("cannot find reqItem for response ID: %s", reqID)
+	}
+	if err == nil && r.dedup.markSeen(recv) {
+		item.finalHandler(ctx, recv)
+	}
 
-}
-
-func (r *RelayPubSubCollector) handleResponse(resp *pb.Response) (err error) {
-	// call the responseHandler
-
-	return
-}
-
-func (r *RelayPubSubCollector) handleFinalResponse(resp *pb.Response) (err error) {
 	return
 }
 

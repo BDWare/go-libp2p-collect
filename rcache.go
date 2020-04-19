@@ -1,6 +1,10 @@
 package collect
 
 import (
+	"context"
+	"hash/fnv"
+
+	"bdware.org/libp2p/go-libp2p-collect/pb"
 	lru "github.com/hashicorp/golang-lru"
 )
 
@@ -16,14 +20,22 @@ type reqItem struct {
 	finalHandler FinalRespHandler
 	topic        string
 	msg          *Message
-	cancel       func()
+}
+
+type reqItemCtx struct {
+	*reqItem
+	cancel func()
+}
+
+func (i *reqItemCtx) Cancel() {
+	i.cancel()
 }
 
 // callback when a request is evicted.
 func onReqCacheEvict(key interface{}, value interface{}) {
 	// cancel context
-	item := value.(*reqItem)
-	item.cancel()
+	item := value.(*reqItemCtx)
+	item.Cancel()
 	// TODO: add logging
 }
 
@@ -36,8 +48,22 @@ func newRequestCache(size int) (*requestCache, error) {
 }
 
 // AddReqItem .
-func (rc *requestCache) AddReqItem(reqid string, item *reqItem) {
-	rc.cache.Add(reqid, item)
+// Add with the same reqid will make the previous one cancelled.
+// When context is done, item will be removed from the cache;
+// When the item is evicted, the context will be cancelled.
+func (rc *requestCache) AddReqItem(ctx context.Context, reqid string, item *reqItem) {
+	rc.RemoveReqItem(reqid)
+	cctx, cc := context.WithCancel(ctx)
+	itemCtx := &reqItemCtx{
+		reqItem: item,
+		cancel:  cc,
+	}
+	// Is there any better idea without using goroutine?
+	go func() {
+		<-cctx.Done()
+		rc.RemoveReqItem(reqid)
+	}()
+	rc.cache.Add(reqid, itemCtx)
 }
 
 // RemoveReqItem .
@@ -49,7 +75,9 @@ func (rc *requestCache) RemoveReqItem(reqid string) {
 func (rc *requestCache) GetReqItem(reqid string) (out *reqItem, ok bool) {
 	var v interface{}
 	v, ok = rc.cache.Get(reqid)
-	out, ok = v.(*reqItem)
+	if ok {
+		out = v.(*reqItemCtx).reqItem
+	}
 	return
 }
 
@@ -57,7 +85,7 @@ func (rc *requestCache) GetReqItem(reqid string) (out *reqItem, ok bool) {
 func (rc *requestCache) RemoveTopic(topic string) {
 	for _, k := range rc.cache.Keys() {
 		if v, ok := rc.cache.Peek(k); ok {
-			item := v.(*reqItem)
+			item := v.(*reqItemCtx).reqItem
 			if item.topic == topic {
 				rc.cache.Remove(k)
 			}
@@ -77,16 +105,34 @@ type responseCache struct {
 }
 
 // respItem .
-type respItem struct {
-}
+type respItem struct{}
 
 // newResponseCache .
 func newResponseCache(size int) (*responseCache, error) {
-	l, err := lru.NewWithEvict(size, onRespCacheEvict)
+	l, err := lru.New(size)
 	return &responseCache{
 		cache: l,
 	}, err
 }
 
-func onRespCacheEvict(key interface{}, value interface{}) {
+func (r *responseCache) markSeen(resp *pb.Response) bool {
+	var (
+		err   error
+		hash  uint64
+		found bool
+	)
+	data := resp.Payload
+	if err == nil {
+		s := fnv.New64()
+		_, err = s.Write(data)
+		hash = s.Sum64()
+	}
+	if err == nil {
+		_, found = r.cache.Get(hash)
+	}
+	if err == nil && !found {
+		r.cache.Add(hash, respItem{})
+		return true
+	}
+	return false
 }

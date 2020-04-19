@@ -137,24 +137,15 @@ func (bpsc *BasicPubSubCollector) Publish(topic string, payload []byte, opts ...
 		tosend, err = req.Marshal()
 	}
 	if err == nil {
-
 		// register notif handler
-		bpsc.reqCache.AddReqItem(rqID, &reqItem{
+		bpsc.reqCache.AddReqItem(options.RequestContext, rqID, &reqItem{
 			finalHandler: options.FinalRespHandle,
 			topic:        topic,
-			cancel:       options.Cancel,
 		})
 
 		//  publish marshaled request
 		err = bpsc.apsub.Publish(options.RequestContext, topic, tosend)
 
-		// delete reqItem when options.Ctx expires
-		go func() {
-			select {
-			case <-options.RequestContext.Done():
-				bpsc.reqCache.RemoveReqItem(rqID)
-			}
-		}()
 	}
 	return
 }
@@ -188,23 +179,26 @@ func (bpsc *BasicPubSubCollector) topicHandle(topic string, msg *Message) {
 		respBytes   []byte
 		s           network.Stream
 		ctx         context.Context
-		cc          func()
 	)
-	{
-		ctx, cc = context.WithCancel(context.Background())
-		rqID = bpsc.ridgen(req)
-		bpsc.reqCache.AddReqItem(rqID, &reqItem{
-			topic:  topic,
-			cancel: cc,
-		})
-		// clean up later
-		defer bpsc.reqCache.RemoveReqItem(rqID)
-	}
 	{
 		// unmarshal the received data into request struct
 		req = &pb.Request{}
 		err = req.Unmarshal(msg.Data)
 	}
+	if err == nil {
+		rqID = bpsc.ridgen(req)
+
+		// not self-publish, add a reqItem
+		if msg.ReceivedFrom != bpsc.host.ID() {
+			bpsc.reqCache.AddReqItem(context.Background(), rqID, &reqItem{
+				msg:   msg,
+				topic: topic,
+			})
+			// clean up later
+			defer bpsc.reqCache.RemoveReqItem(rqID)
+		}
+	}
+
 	if err == nil {
 		// Dispatch request to relative topic request handler,
 		// which should be initialized in join function
