@@ -74,7 +74,7 @@ func TestEvict(t *testing.T) {
 	}
 }
 
-func TestSamevict(t *testing.T) {
+func TestSameEvict(t *testing.T) {
 	rcache, err := newRequestCache(2)
 	assert.NoError(t, err)
 	rcache.AddReqItem(context.Background(), "1", &reqItem{})
