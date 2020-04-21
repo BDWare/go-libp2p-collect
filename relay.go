@@ -221,8 +221,8 @@ func (r *RelayPubSubCollector) topicHandle(topic string, msg *Message) {
 		// After request is processed, we will have a Intermediate.
 		// We send the response to the root node directly if sendback is set to true.
 		// Another protocol will be used to inform the root node.
-		if !rqresult.Sendback {
-			// drop any response if sendback is false
+		if rqresult == nil || !rqresult.Sendback {
+			// drop any response if sendback is false or sendback == nil
 			return
 		}
 
