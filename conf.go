@@ -45,7 +45,7 @@ type Conf struct {
 // MakeDefaultConf returns a default Conf instance
 func MakeDefaultConf() Conf {
 	return Conf{
-		ProtocolPrefix:    "/basicpsc",
+		ProtocolPrefix:    "/psc",
 		RequestCacheSize:  512,
 		ResponseCacheSize: 1024,
 	}

@@ -70,6 +70,16 @@ func MakeDefaultReqIDGenerator() ReqIDGenerator {
 	}
 }
 
+type logger interface {
+	Logf(level, format string, args ...interface{})
+}
+
+// WithLogger .
+func WithLogger(l logger) {
+	// TODO
+	panic("not implemeted")
+}
+
 // JoinOpt is optional options in PubSubCollector.Join
 type JoinOpt func(*JoinOpts) error
 
