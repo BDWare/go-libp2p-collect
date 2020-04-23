@@ -10,6 +10,7 @@ import (
 	"bdware.org/libp2p/go-libp2p-collect/pb"
 	peer "github.com/libp2p/go-libp2p-core/peer"
 	"github.com/stretchr/testify/assert"
+	"sync/atomic"
 )
 
 func TestRelaySendRecv(t *testing.T) {
@@ -368,17 +369,6 @@ func TestFinalDeduplication(t *testing.T) {
 	topic := "test-topic"
 	payload := []byte{1, 2, 3}
 
-	// handlePub and handleSub is both request handle,
-	// but handleSub will send back the response
-	//handlePub := func(ctx context.Context, r *pb.Request) *pb.Intermediate {
-	//	assert.Equal(t, payload, r.Payload)
-	//	assert.Equal(t, pubhost.ID(), peer.ID(r.Control.Root))
-	//	out := &pb.Intermediate{
-	//		Sendback: false,
-	//		Payload:  payload,
-	//	}
-	//	return out
-	//}
 	// when B handles the request, B sends two responses to A directly, not using Intermediate
 	handleSub := func(ctx context.Context, req *pb.Request) *pb.Intermediate {
 		assert.Equal(t, payload, req.Payload)
@@ -423,27 +413,18 @@ func TestFinalDeduplication(t *testing.T) {
 
 	// time to join
 	time.Sleep(50 * time.Millisecond)
-
-	//okch := make(chan struct{})
 	
 	// add count by 1 when final handler is called
-	count := 0
+	count := int32(0)
 	finalHandler := func(ctx context.Context, rp *pb.Response) {
 		assert.Equal(t, payload, rp.Payload)
-		count++
-		//okch <- struct{}{}
+		atomic.AddInt32(&count, 1)
 	}
 	err = pub.Publish(topic, payload, WithFinalRespHandler(finalHandler))
 	assert.NoError(t, err)
 
-	// after 2 seconds, test will failed
-	//select {
-	//case <-time.After(2 * time.Second):
-	//	assert.Fail(t, "we don't receive enough response in 2s")
-	//case <-okch:
-	//}
-	<-time.After(2 * time.Second)
-	assert.Equal(t, count, 1)
+	time.Sleep(2 * time.Second)
+	assert.Equal(t, atomic.LoadInt32(&count), int32(1))
 }
 
 // tuple nodes' tests
@@ -479,12 +460,12 @@ func TestDeduplication(t *testing.T) {
 	topic := "test-topic"
 	payload := []byte{1, 2, 3}
 
-	recvB := false
+	recvB := int32(0)
 	handlerForB := func(ctx context.Context, r *pb.Request) *pb.Intermediate {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, hostA.ID(), peer.ID(r.Control.Root))
 		assert.Equal(t, hostA.ID(), peer.ID(r.Control.From))
-		recvB = true
+		atomic.StoreInt32(&recvB, 1)
 		out := &pb.Intermediate{
 			Sendback: true,
 			Payload:  payload,
@@ -492,7 +473,7 @@ func TestDeduplication(t *testing.T) {
 		return out
 	}
 
-	recvC := false
+	recvC := int32(0)
 	handlerForC := func(ctx context.Context, r *pb.Request) *pb.Intermediate {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, hostA.ID(), peer.ID(r.Control.Root))
@@ -501,7 +482,7 @@ func TestDeduplication(t *testing.T) {
 			return nil
 		}
 		assert.Equal(t, hostB.ID(), peer.ID(r.Control.From))
-		recvC = true
+		atomic.StoreInt32(&recvC, 1)
 		out := &pb.Intermediate{
 			Sendback: true,
 			Payload:  payload,
@@ -519,27 +500,19 @@ func TestDeduplication(t *testing.T) {
 	// time to join
 	time.Sleep(50 * time.Millisecond)
 
-	//okch := make(chan struct{})
 	// add count by 1 when final handler is called
-	count := 0
+	count := int32(0)
 	finalHandler := func(ctx context.Context, rp *pb.Response) {
 		assert.Equal(t, payload, rp.Payload)
-		count++
-		//okch <- struct{}{}
+		atomic.AddInt32(&count, 1)
 	}
 	err = pscA.Publish(topic, payload, WithFinalRespHandler(finalHandler))
 	assert.NoError(t, err)
 
-	// after 2 seconds, test will failed
-	//select {
-	//case <-time.After(2 * time.Second):
-	//	assert.Fail(t, "we don't receive enough response in 2s")
-	//case <-okch:
-	//}
-	<-time.After(2 * time.Second)
-	assert.Equal(t, count, 1)
-	assert.True(t, recvB)
-	assert.True(t, recvC)
+	time.Sleep(2 * time.Second)
+	assert.Equal(t, atomic.LoadInt32(&count), int32(1))
+	assert.Equal(t, atomic.LoadInt32(&recvB), int32(1))
+	assert.Equal(t, atomic.LoadInt32(&recvC), int32(1))
 }
 
 func TestNoRequestIDForResponse(t *testing.T) {
@@ -577,12 +550,12 @@ func TestNoRequestIDForResponse(t *testing.T) {
 	payloadB := []byte{1,2,3}
 	payloadC := []byte{3,2,1}
 
-	recvB := false
+	recvB := int32(0)
 	handlerForB := func(ctx context.Context, r *pb.Request) *pb.Intermediate {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, hostA.ID(), peer.ID(r.Control.Root))
 		assert.Equal(t, hostA.ID(), peer.ID(r.Control.From), "B is expected to receive req from A")
-		recvB = true
+		atomic.StoreInt32(&recvB, 1)
 		out := &pb.Intermediate{
 			Sendback: true,
 			Payload:  payloadB,
@@ -591,12 +564,12 @@ func TestNoRequestIDForResponse(t *testing.T) {
 	}
 	okch := make(chan struct{}, 1)
 
-	recvC := false
+	recvC := int32(0)
 	handlerForC := func(ctx context.Context, r *pb.Request) *pb.Intermediate {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, hostA.ID(), peer.ID(r.Control.Root))
 		assert.Equal(t, hostB.ID(), peer.ID(r.Control.From), "C is expected to receive req from B")
-		recvC = true
+		atomic.StoreInt32(&recvC, 1)
 		out := &pb.Intermediate{
 			Sendback: true,
 			Payload:  payloadC,
@@ -619,23 +592,17 @@ func TestNoRequestIDForResponse(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// add count by 1 when final handler is called
-	count := 0
+	count := int32(0)
 	finalHandler := func(ctx context.Context, rp *pb.Response) {
 		assert.Equal(t, payloadB, rp.Payload)
-		count++
+		atomic.AddInt32(&count, 1)
 		okch <- struct{}{}
 	}
 	err = pscA.Publish(topic, payload, WithFinalRespHandler(finalHandler))
 	assert.NoError(t, err)
 
-	// after 2 seconds, test will failed
-	//select {
-	//case <-time.After(2 * time.Second):
-	//	assert.Fail(t, "we don't receive enough response in 2s")
-	//case <-okch:
-	//}
-	<-time.After(2 * time.Second)
-	assert.Equal(t, count, 1, "A should receive only 1 response")
-	assert.True(t, recvB, "B hasn't received a request")
-	assert.True(t, recvC, "C hasn't received a request")
+	time.Sleep(2 * time.Second)
+	assert.Equal(t, atomic.LoadInt32(&count), int32(1), "A should receive only 1 response")
+	assert.Equal(t, atomic.LoadInt32(&recvB), int32(1))
+	assert.Equal(t, atomic.LoadInt32(&recvC), int32(1))
 }
