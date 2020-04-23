@@ -166,11 +166,14 @@ func (r *RelayPubSubCollector) topicHandle(topic string, msg *Message) {
 	var (
 		req *pb.Request
 		err error
+		recvFrom []byte
 	)
 	{
 		// unmarshal the received data into request struct
 		req = &pb.Request{}
 		err = req.Unmarshal(msg.Data)
+		recvFrom, err = msg.ReceivedFrom.MarshalBinary()
+		req.Control.From = recvFrom
 	}
 	var (
 		ok          bool
@@ -293,7 +296,7 @@ func (r *RelayPubSubCollector) handleAndForwardResponse(ctx context.Context, rec
 			respBytes, err = recv.Marshal()
 		}
 		if err == nil {
-			from = peer.ID(item.msg.From)
+			from = peer.ID(item.msg.ReceivedFrom)
 			s, err = r.host.NewStream(context.Background(), from, r.conf.responseProtocol)
 		}
 		if err == nil {
