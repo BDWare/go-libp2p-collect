@@ -13,16 +13,17 @@ type InitOpt func(*InitOpts) error
 
 // InitOpts is options used in NewBasicPubSubCollector
 type InitOpts struct {
-	Conf        *Conf
+	Conf        Conf
 	IDGenerator ReqIDGenerator
+	Logger      Logger
 }
 
 // NewInitOpts returns initopts
 func NewInitOpts(opts []InitOpt) (out *InitOpts, err error) {
-	conf := MakeDefaultConf()
 	out = &InitOpts{
-		Conf:        &conf,
+		Conf:        MakeDefaultConf(),
 		IDGenerator: MakeDefaultReqIDGenerator(),
+		Logger:      MakeDefaultLogger(),
 	}
 	for _, opt := range opts {
 		if err == nil {
@@ -36,11 +37,8 @@ func NewInitOpts(opts []InitOpt) (out *InitOpts, err error) {
 }
 
 // WithConf specifies configuration of basic pubsubcollector
-func WithConf(conf *Conf) InitOpt {
+func WithConf(conf Conf) InitOpt {
 	return func(opts *InitOpts) error {
-		if conf == nil {
-			return fmt.Errorf("unexpected nil conf")
-		}
 		opts.Conf = conf
 		return nil
 	}
@@ -70,12 +68,22 @@ func MakeDefaultReqIDGenerator() ReqIDGenerator {
 	}
 }
 
-type logger interface {
+// Logger .
+type Logger interface {
 	Logf(level, format string, args ...interface{})
 }
 
+type emptyLogger struct{}
+
+func (e emptyLogger) Logf(level, format string, args ...interface{}) {}
+
+// MakeDefaultLogger .
+func MakeDefaultLogger() Logger {
+	return emptyLogger{}
+}
+
 // WithLogger .
-func WithLogger(l logger) {
+func WithLogger(l Logger) {
 	// TODO
 	panic("not implemeted")
 }

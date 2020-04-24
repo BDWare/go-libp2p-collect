@@ -50,7 +50,7 @@ func NewBasicPubSubCollector(h host.Host, options ...InitOpt) (bpsc *BasicPubSub
 		opts, err = NewInitOpts(options)
 	}
 	if err == nil {
-		c, err = checkOptConfAndGetInnerConf(opts.Conf)
+		c, err = checkOptConfAndGetInnerConf(&opts.Conf)
 	}
 	if err == nil {
 		apsub, err = NewAsyncPubSub(
