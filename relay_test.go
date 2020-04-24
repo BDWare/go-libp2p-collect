@@ -2,15 +2,17 @@ package collect
 
 import (
 	"context"
-	"github.com/libp2p/go-libp2p-core/network"
 	"testing"
 	"time"
+
+	"github.com/libp2p/go-libp2p-core/network"
+
+	"sync/atomic"
 
 	"bdware.org/libp2p/go-libp2p-collect/mock"
 	"bdware.org/libp2p/go-libp2p-collect/pb"
 	peer "github.com/libp2p/go-libp2p-core/peer"
 	"github.com/stretchr/testify/assert"
-	"sync/atomic"
 )
 
 func TestRelaySendRecv(t *testing.T) {
@@ -413,7 +415,7 @@ func TestFinalDeduplication(t *testing.T) {
 
 	// time to join
 	time.Sleep(50 * time.Millisecond)
-	
+
 	// add count by 1 when final handler is called
 	count := int32(0)
 	finalHandler := func(ctx context.Context, rp *pb.Response) {
@@ -547,8 +549,8 @@ func TestNoRequestIDForResponse(t *testing.T) {
 
 	topic := "test-topic"
 	payload := []byte{1, 2, 3}
-	payloadB := []byte{1,2,3}
-	payloadC := []byte{3,2,1}
+	payloadB := []byte{1, 2, 3}
+	payloadC := []byte{3, 2, 1}
 
 	recvB := int32(0)
 	handlerForB := func(ctx context.Context, r *pb.Request) *pb.Intermediate {

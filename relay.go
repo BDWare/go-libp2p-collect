@@ -125,18 +125,23 @@ func (r *RelayPubSubCollector) Publish(topic string, data []byte, opts ...PubOpt
 		options, err = NewPublishOptions(opts)
 	}
 	if err == nil {
-		// assemble the request struct
 		root, err = r.host.ID().MarshalBinary()
 	}
 	if err == nil {
 		req := &pb.Request{
 			Control: pb.RequestControl{
 				Root:  root,
+				From:  root,
 				Seqno: atomic.AddUint64(&(r.seqno), 1),
 			},
 			Payload: data,
 		}
+
 		rqID = r.ridgen(req)
+
+		// Root and From will not be transmitted on network.
+		req.Control.Root = nil
+		req.Control.From = nil
 
 		tosend, err = req.Marshal()
 	}
@@ -166,14 +171,18 @@ func (r *RelayPubSubCollector) topicHandle(topic string, msg *Message) {
 	var (
 		req *pb.Request
 		err error
-		recvFrom []byte
 	)
 	{
 		// unmarshal the received data into request struct
 		req = &pb.Request{}
 		err = req.Unmarshal(msg.Data)
-		recvFrom, err = msg.ReceivedFrom.MarshalBinary()
-		req.Control.From = recvFrom
+	}
+	if err == nil {
+		// req.Control.From and Control.Root is not transmitted on wire actually.
+		// we can get it from message.From and ReceivedFrom, and then
+		// we pass req to requestHandler.
+		req.Control.Root = msg.From
+		req.Control.From, err = msg.ReceivedFrom.MarshalBinary()
 	}
 	var (
 		ok          bool
