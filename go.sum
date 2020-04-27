@@ -1,3 +1,5 @@
+bdware.org/libp2p/go-libp2p-pubsub v0.2.6-upstream.0.20200413111108-955568387ea6 h1:tBB5B76TG2YcrsHBe0L5VnBQ7licyd/D4FPy4PmQTW8=
+bdware.org/libp2p/go-libp2p-pubsub v0.2.6-upstream.0.20200413111108-955568387ea6/go.mod h1:kdrpkuCwoqYQh2WvZuvIMp57gD5TJejny1Nk13iKQVY=
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 github.com/AndreasBriese/bbloom v0.0.0-20180913140656-343706a395b7/go.mod h1:bOvUY6CB00SOBii9/FifXqc0awNKxLFCL/+pkDPuyl8=
 github.com/AndreasBriese/bbloom v0.0.0-20190306092124-e2d15f34fcf9/go.mod h1:bOvUY6CB00SOBii9/FifXqc0awNKxLFCL/+pkDPuyl8=

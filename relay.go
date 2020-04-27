@@ -8,12 +8,12 @@ import (
 	"sync/atomic"
 
 	"bdware.org/libp2p/go-libp2p-collect/pb"
+	pubsub "bdware.org/libp2p/go-libp2p-pubsub"
+	pubsub_pb "bdware.org/libp2p/go-libp2p-pubsub/pb"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 	protocol "github.com/libp2p/go-libp2p-core/protocol"
-	pubsub "github.com/libp2p/go-libp2p-pubsub"
-	pubsub_pb "github.com/libp2p/go-libp2p-pubsub/pb"
 )
 
 type deduplicator interface {
