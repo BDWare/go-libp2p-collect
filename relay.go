@@ -32,6 +32,7 @@ type RelayPubSubCollector struct {
 	reqCache *requestCache
 	dedup    deduplicator
 	ridgen   ReqIDGenerator
+	logger   Logger
 }
 
 // NewRelayPubSubCollector .
@@ -64,6 +65,7 @@ func NewRelayPubSubCollector(h host.Host, options ...InitOpt) (r *RelayPubSubCol
 			reqCache: reqCache,
 			dedup:    respCache,
 			ridgen:   opts.IDGenerator,
+			logger:   opts.Logger,
 		}
 		ap, err = NewAsyncPubSub(
 			h,
@@ -92,6 +94,9 @@ func NewRelayPubSubCollector(h host.Host, options ...InitOpt) (r *RelayPubSubCol
 // Join the overlay network defined by topic.
 // Register RequestHandle and ResponseHandle in opts.
 func (r *RelayPubSubCollector) Join(topic string, options ...JoinOpt) (err error) {
+
+	r.logger.Logf("debug", "relay join: %s", topic)
+
 	var opts *JoinOpts
 	{
 		opts, err = NewJoinOptions(options)
@@ -110,11 +115,19 @@ func (r *RelayPubSubCollector) Join(topic string, options ...JoinOpt) (err error
 	if err == nil {
 		err = r.apubsub.SetTopicItem(topic, responseHandlerKey, opts.ResponseHandler)
 	}
+
+	if err != nil {
+		r.logger.Logf("error", "join: %v", err)
+	}
+
 	return
 }
 
 // Publish a serialized request. Request should be encasulated in data argument.
 func (r *RelayPubSubCollector) Publish(topic string, data []byte, opts ...PubOpt) (err error) {
+
+	r.logger.Logf("debug", "relay publish: %s", topic)
+
 	var (
 		root    []byte
 		rqID    string
@@ -156,22 +169,64 @@ func (r *RelayPubSubCollector) Publish(topic string, data []byte, opts ...PubOpt
 		err = r.apubsub.Publish(options.RequestContext, topic, tosend)
 
 	}
+
+	if err != nil {
+		r.logger.Logf("error", "publish: %v", err)
+	}
+
 	return
 }
 
 // Leave the overlay
 func (r *RelayPubSubCollector) Leave(topic string) (err error) {
+
+	r.logger.Logf("debug", "relay leave: %s", topic)
+
 	err = r.apubsub.Unsubscribe(topic)
 	r.reqCache.RemoveTopic(topic)
+
+	if err != nil {
+		r.logger.Logf("error", "leave: %v", err)
+	}
+
+	return
+}
+
+// Close the BasicPubSubCollector.
+func (r *RelayPubSubCollector) Close() (err error) {
+
+	r.logger.Logf("debug", "relay close")
+
+	r.reqCache.RemoveAll()
+	err = r.apubsub.Close()
+
+	if err != nil {
+		r.logger.Logf("error", "relay close: %v", err)
+	}
 	return
 }
 
 func (r *RelayPubSubCollector) topicHandle(topic string, msg *Message) {
 
-	var (
-		req *pb.Request
-		err error
-	)
+	var err error
+	if msg == nil {
+		err = fmt.Errorf("unexpected nil msg")
+	}
+
+	if err == nil {
+		r.logger.Logf(
+			"info",
+			`relay topicHandle:
+			topic: %s,
+			msg.from: %s,
+			msg.recvFrom: %s,`,
+			topic,
+			peer.ID(msg.From).ShortString(),
+			msg.ReceivedFrom.ShortString(),
+		)
+	}
+
+	var req *pb.Request
 	{
 		// unmarshal the received data into request struct
 		req = &pb.Request{}
@@ -192,6 +247,14 @@ func (r *RelayPubSubCollector) topicHandle(topic string, msg *Message) {
 	)
 	if err == nil {
 		rqID = r.ridgen(req)
+
+		r.logger.Logf(
+			"info",
+			`relay topicHandle:
+			req_id: %s,
+			`,
+			rqID,
+		)
 		// Dispatch request to relative topic request handler,
 		// which should be initialized in join function
 		rqhandleRaw, err = r.apubsub.LoadTopicItem(topic, requestHandlerKey)
@@ -235,6 +298,17 @@ func (r *RelayPubSubCollector) topicHandle(topic string, msg *Message) {
 		// Another protocol will be used to inform the root node.
 		if rqresult == nil || !rqresult.Sendback {
 			// drop any response if sendback is false or sendback == nil
+
+			r.logger.Logf(
+				"info",
+				`relay topicHandle:
+				req_id: %s,
+				rqresult: %+v,
+				message: not sendback due to nil rqresult or sendback is set to false`,
+				rqID,
+				rqresult,
+			)
+
 			return
 		}
 
@@ -250,6 +324,15 @@ func (r *RelayPubSubCollector) topicHandle(topic string, msg *Message) {
 
 		// receive self-published message
 		if peer.ID(req.Control.Root) == r.host.ID() {
+
+			r.logger.Logf(
+				"info",
+				`relay topicHandle:
+				req_id: %s,
+				message: receive self-published message`,
+				rqID,
+			)
+
 			r.handleFinalResponse(ctx, resp)
 		} else {
 			r.handleAndForwardResponse(ctx, resp)
@@ -257,10 +340,24 @@ func (r *RelayPubSubCollector) topicHandle(topic string, msg *Message) {
 
 	}
 
+	if err != nil {
+		r.logger.Logf(
+			"error",
+			`relay topichandle: 
+			topic:%s, 
+			error:%+v,`,
+			topic,
+			err,
+		)
+	}
+
 	return
 }
 
 func (r *RelayPubSubCollector) responseStreamHandler(s network.Stream) {
+
+	r.logger.Logf("info", "relay streamHandler: from: %s", s.Conn().RemotePeer().ShortString())
+
 	var (
 		respBytes []byte
 		err       error
@@ -279,9 +376,39 @@ func (r *RelayPubSubCollector) responseStreamHandler(s network.Stream) {
 			err = r.handleAndForwardResponse(context.Background(), resp)
 		}
 	}
+
+	if err != nil {
+		r.logger.Logf(
+			"error",
+			`relay streamHandler: 
+			from: %s,
+			error: %v,`,
+			s.Conn().RemotePeer().ShortString(),
+			err,
+		)
+	}
 }
 
 func (r *RelayPubSubCollector) handleAndForwardResponse(ctx context.Context, recv *pb.Response) (err error) {
+
+	if recv == nil {
+		err = fmt.Errorf("unexpect nil response")
+	}
+
+	if err == nil {
+		r.logger.Logf(
+			"debug",
+			`relay handleAndResponse: 
+			request_id: %s,
+			from: %s,
+			root: %s,
+			`,
+			recv.Control.RequestId,
+			peer.ID(recv.Control.From).ShortString(),
+			peer.ID(recv.Control.Root).ShortString(),
+		)
+	}
+
 	// check response cache, deduplicate and forward
 	var (
 		reqID string
@@ -306,6 +433,7 @@ func (r *RelayPubSubCollector) handleAndForwardResponse(ctx context.Context, rec
 		}
 		if err == nil {
 			from = peer.ID(item.msg.ReceivedFrom)
+
 			s, err = r.host.NewStream(context.Background(), from, r.conf.responseProtocol)
 		}
 		if err == nil {
@@ -314,11 +442,39 @@ func (r *RelayPubSubCollector) handleAndForwardResponse(ctx context.Context, rec
 		}
 	}
 
+	if err != nil {
+		r.logger.Logf(
+			"error",
+			`relay handleAndForwardResponse: 
+			error: %v,`,
+			err,
+		)
+	}
+
 	return
 }
 
 // only called in root node
 func (r *RelayPubSubCollector) handleFinalResponse(ctx context.Context, recv *pb.Response) (err error) {
+
+	if recv == nil {
+		err = fmt.Errorf("unexpect nil response")
+	}
+
+	if err == nil {
+		r.logger.Logf(
+			"debug",
+			`relay handleFinalResponse: 
+			request_id: %s,
+			from: %s,
+			root: %s,
+			`,
+			recv.Control.RequestId,
+			peer.ID(recv.Control.From).ShortString(),
+			peer.ID(recv.Control.Root).ShortString(),
+		)
+	}
+
 	var (
 		reqID string
 		item  *reqItem
@@ -333,6 +489,14 @@ func (r *RelayPubSubCollector) handleFinalResponse(ctx context.Context, recv *pb
 		item.finalHandler(ctx, recv)
 	}
 
+	if err != nil {
+		r.logger.Logf(
+			"error",
+			`relay handleFinalResponse: 
+			error: %v,`,
+			err,
+		)
+	}
 	return
 }
 
