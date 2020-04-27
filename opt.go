@@ -69,6 +69,8 @@ func MakeDefaultReqIDGenerator() ReqIDGenerator {
 }
 
 // Logger .
+// level is {"debug", "info", "warn", "error", "fatal"};
+// format and args are compatable with fmt.Printf.
 type Logger interface {
 	Logf(level, format string, args ...interface{})
 }
@@ -83,9 +85,11 @@ func MakeDefaultLogger() Logger {
 }
 
 // WithLogger .
-func WithLogger(l Logger) {
-	// TODO
-	panic("not implemeted")
+func WithLogger(l Logger) InitOpt {
+	return func(opts *InitOpts) error {
+		opts.Logger = l
+		return nil
+	}
 }
 
 // JoinOpt is optional options in PubSubCollector.Join
