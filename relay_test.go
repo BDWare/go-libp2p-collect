@@ -39,19 +39,19 @@ func TestRelaySendRecv(t *testing.T) {
 
 	// handlePub and handleSub is both request handle,
 	// but handleSub will send back the response
-	handlePub := func(ctx context.Context, r *pb.Request) *pb.Intermediate {
+	handlePub := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, pubhost.ID(), peer.ID(r.Control.Root))
-		out := &pb.Intermediate{
+		out := &Intermediate{
 			Sendback: false,
 			Payload:  payload,
 		}
 		return out
 	}
-	handleSub := func(ctx context.Context, r *pb.Request) *pb.Intermediate {
+	handleSub := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, pubhost.ID(), peer.ID(r.Control.Root))
-		out := &pb.Intermediate{
+		out := &Intermediate{
 			Sendback: true,
 			Payload:  payload,
 		}
@@ -67,7 +67,7 @@ func TestRelaySendRecv(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	okch := make(chan struct{})
-	notif := func(ctx context.Context, rp *pb.Response) {
+	notif := func(ctx context.Context, rp *Response) {
 		assert.Equal(t, payload, rp.Payload)
 		okch <- struct{}{}
 	}
@@ -98,10 +98,10 @@ func TestRelaySelfPub(t *testing.T) {
 
 	// handlePub and handleSub is both request handle,
 	// but handleSub will send back the response
-	handlePub := func(ctx context.Context, r *pb.Request) *pb.Intermediate {
+	handlePub := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, pubhost.ID(), peer.ID(r.Control.Root))
-		out := &pb.Intermediate{
+		out := &Intermediate{
 			Sendback: true,
 			Payload:  payload,
 		}
@@ -115,7 +115,7 @@ func TestRelaySelfPub(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	okch := make(chan struct{})
-	notif := func(ctx context.Context, rp *pb.Response) {
+	notif := func(ctx context.Context, rp *Response) {
 		assert.Equal(t, payload, rp.Payload)
 		okch <- struct{}{}
 	}
@@ -144,19 +144,19 @@ func TestRelayRejoin(t *testing.T) {
 
 	// handlePub and handleSub is both request handle,
 	// but handleSub will send back the response
-	handlePub := func(ctx context.Context, r *pb.Request) *pb.Intermediate {
+	handlePub := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, h.ID(), peer.ID(r.Control.Root))
-		out := &pb.Intermediate{
+		out := &Intermediate{
 			Sendback: true,
 			Payload:  payload,
 		}
 		return out
 	}
-	anotherHandle := func(ctx context.Context, r *pb.Request) *pb.Intermediate {
+	anotherHandle := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, h.ID(), peer.ID(r.Control.Root))
-		out := &pb.Intermediate{
+		out := &Intermediate{
 			Sendback: true,
 			Payload:  another,
 		}
@@ -171,7 +171,7 @@ func TestRelayRejoin(t *testing.T) {
 	assert.NoError(t, err)
 
 	okch := make(chan struct{})
-	notif := func(ctx context.Context, rp *pb.Response) {
+	notif := func(ctx context.Context, rp *Response) {
 		assert.Equal(t, another, rp.Payload)
 		okch <- struct{}{}
 	}
@@ -210,19 +210,19 @@ func TestRelayLeaveAndJoin(t *testing.T) {
 
 	// handlePub and handleSub is both request handle,
 	// but handleSub will send back the response
-	handlePub := func(ctx context.Context, r *pb.Request) *pb.Intermediate {
+	handlePub := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, pubhost.ID(), peer.ID(r.Control.Root))
-		out := &pb.Intermediate{
+		out := &Intermediate{
 			Sendback: false,
 			Payload:  payload,
 		}
 		return out
 	}
-	handleSub := func(ctx context.Context, r *pb.Request) *pb.Intermediate {
+	handleSub := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, pubhost.ID(), peer.ID(r.Control.Root))
-		out := &pb.Intermediate{
+		out := &Intermediate{
 			Sendback: true,
 			Payload:  payload,
 		}
@@ -238,7 +238,7 @@ func TestRelayLeaveAndJoin(t *testing.T) {
 
 	okch := make(chan struct{})
 
-	notifOK := func(ctx context.Context, rp *pb.Response) {
+	notifOK := func(ctx context.Context, rp *Response) {
 		assert.Equal(t, payload, rp.Payload)
 		okch <- struct{}{}
 	}
@@ -257,7 +257,7 @@ func TestRelayLeaveAndJoin(t *testing.T) {
 	assert.NoError(t, err)
 	time.Sleep(10 * time.Millisecond)
 
-	notifFail := func(ctx context.Context, rp *pb.Response) {
+	notifFail := func(ctx context.Context, rp *Response) {
 		assert.FailNow(t, "should not recv message")
 	}
 	err = pub.Publish(topic, payload, WithFinalRespHandler(notifFail))
@@ -304,20 +304,20 @@ func TestRequestContextExpired(t *testing.T) {
 	cctx, cc := context.WithCancel(context.Background())
 	// handlePub and handleSub is both request handle,
 	// but handleSub will send back the response
-	handlePub := func(ctx context.Context, r *pb.Request) *pb.Intermediate {
-		out := &pb.Intermediate{
+	handlePub := func(ctx context.Context, r *Request) *Intermediate {
+		out := &Intermediate{
 			Sendback: false,
 			Payload:  payload,
 		}
 		return out
 	}
-	handleSub := func(ctx context.Context, r *pb.Request) *pb.Intermediate {
+	handleSub := func(ctx context.Context, r *Request) *Intermediate {
 		// cancel the request context
 		cc()
 		// wait for cancellation
 		time.Sleep(50 * time.Millisecond)
 
-		out := &pb.Intermediate{
+		out := &Intermediate{
 			Sendback: true,
 			Payload:  payload,
 		}
@@ -332,7 +332,7 @@ func TestRequestContextExpired(t *testing.T) {
 	// time to join
 	time.Sleep(50 * time.Millisecond)
 
-	notif := func(ctx context.Context, rp *pb.Response) {
+	notif := func(ctx context.Context, rp *Response) {
 		assert.Fail(t, "unexpected callation of finalRespHandler")
 	}
 
@@ -372,11 +372,11 @@ func TestFinalDeduplication(t *testing.T) {
 	payload := []byte{1, 2, 3}
 
 	// when B handles the request, B sends two responses to A directly, not using Intermediate
-	handleSub := func(ctx context.Context, req *pb.Request) *pb.Intermediate {
+	handleSub := func(ctx context.Context, req *Request) *Intermediate {
 		assert.Equal(t, payload, req.Payload)
 		assert.Equal(t, pubhost.ID(), peer.ID(req.Control.Root))
 		rqID := sub.ridgen(req)
-		resp := &pb.Response{
+		resp := &Response{
 			Control: pb.ResponseControl{
 				RequestId: rqID,
 				Root:      req.Control.Root,
@@ -401,7 +401,7 @@ func TestFinalDeduplication(t *testing.T) {
 		_, err = s.Write(respBytes)
 		s.Close()
 
-		out := &pb.Intermediate{
+		out := &Intermediate{
 			Sendback: false,
 			Payload:  payload,
 		}
@@ -418,7 +418,7 @@ func TestFinalDeduplication(t *testing.T) {
 
 	// add count by 1 when final handler is called
 	count := int32(0)
-	finalHandler := func(ctx context.Context, rp *pb.Response) {
+	finalHandler := func(ctx context.Context, rp *Response) {
 		assert.Equal(t, payload, rp.Payload)
 		atomic.AddInt32(&count, 1)
 	}
@@ -463,12 +463,12 @@ func TestDeduplication(t *testing.T) {
 	payload := []byte{1, 2, 3}
 
 	recvB := int32(0)
-	handlerForB := func(ctx context.Context, r *pb.Request) *pb.Intermediate {
+	handlerForB := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, hostA.ID(), peer.ID(r.Control.Root))
 		assert.Equal(t, hostA.ID(), peer.ID(r.Control.From))
 		atomic.StoreInt32(&recvB, 1)
-		out := &pb.Intermediate{
+		out := &Intermediate{
 			Sendback: true,
 			Payload:  payload,
 		}
@@ -476,7 +476,7 @@ func TestDeduplication(t *testing.T) {
 	}
 
 	recvC := int32(0)
-	handlerForC := func(ctx context.Context, r *pb.Request) *pb.Intermediate {
+	handlerForC := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, hostA.ID(), peer.ID(r.Control.Root))
 		if hostA.ID() == peer.ID(r.Control.From) {
@@ -485,7 +485,7 @@ func TestDeduplication(t *testing.T) {
 		}
 		assert.Equal(t, hostB.ID(), peer.ID(r.Control.From))
 		atomic.StoreInt32(&recvC, 1)
-		out := &pb.Intermediate{
+		out := &Intermediate{
 			Sendback: true,
 			Payload:  payload,
 		}
@@ -504,7 +504,7 @@ func TestDeduplication(t *testing.T) {
 
 	// add count by 1 when final handler is called
 	count := int32(0)
-	finalHandler := func(ctx context.Context, rp *pb.Response) {
+	finalHandler := func(ctx context.Context, rp *Response) {
 		assert.Equal(t, payload, rp.Payload)
 		atomic.AddInt32(&count, 1)
 	}
@@ -553,12 +553,12 @@ func TestNoRequestIDForResponse(t *testing.T) {
 	payloadC := []byte{3, 2, 1}
 
 	recvB := int32(0)
-	handlerForB := func(ctx context.Context, r *pb.Request) *pb.Intermediate {
+	handlerForB := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, hostA.ID(), peer.ID(r.Control.Root))
 		assert.Equal(t, hostA.ID(), peer.ID(r.Control.From), "B is expected to receive req from A")
 		atomic.StoreInt32(&recvB, 1)
-		out := &pb.Intermediate{
+		out := &Intermediate{
 			Sendback: true,
 			Payload:  payloadB,
 		}
@@ -567,12 +567,12 @@ func TestNoRequestIDForResponse(t *testing.T) {
 	okch := make(chan struct{}, 1)
 
 	recvC := int32(0)
-	handlerForC := func(ctx context.Context, r *pb.Request) *pb.Intermediate {
+	handlerForC := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, hostA.ID(), peer.ID(r.Control.Root))
 		assert.Equal(t, hostB.ID(), peer.ID(r.Control.From), "C is expected to receive req from B")
 		atomic.StoreInt32(&recvC, 1)
-		out := &pb.Intermediate{
+		out := &Intermediate{
 			Sendback: true,
 			Payload:  payloadC,
 		}
@@ -595,7 +595,7 @@ func TestNoRequestIDForResponse(t *testing.T) {
 
 	// add count by 1 when final handler is called
 	count := int32(0)
-	finalHandler := func(ctx context.Context, rp *pb.Response) {
+	finalHandler := func(ctx context.Context, rp *Response) {
 		assert.Equal(t, payloadB, rp.Payload)
 		atomic.AddInt32(&count, 1)
 		okch <- struct{}{}

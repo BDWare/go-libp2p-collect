@@ -137,7 +137,7 @@ func (bpsc *BasicPubSubCollector) Publish(topic string, payload []byte, opts ...
 		root, err = bpsc.host.ID().MarshalBinary()
 	}
 	if err == nil {
-		req := &pb.Request{
+		req := &Request{
 			Control: pb.RequestControl{
 				Root:  root,
 				Seqno: atomic.AddUint64(&(bpsc.seqno), 1),
@@ -219,20 +219,20 @@ func (bpsc *BasicPubSubCollector) topicHandle(topic string, msg *Message) {
 
 	var (
 		ok          bool
-		req         *pb.Request
+		req         *Request
 		rqhandleRaw interface{}
 		rqhandle    RequestHandler
-		rqresult    *pb.Intermediate
+		rqresult    *Intermediate
 		rqID        string
 		rootID      peer.ID
-		resp        *pb.Response
+		resp        *Response
 		respBytes   []byte
 		s           network.Stream
 		ctx         context.Context
 	)
 	{
 		// unmarshal the received data into request struct
-		req = &pb.Request{}
+		req = &Request{}
 		err = req.Unmarshal(msg.Data)
 	}
 	if err == nil {
@@ -294,7 +294,7 @@ func (bpsc *BasicPubSubCollector) topicHandle(topic string, msg *Message) {
 		}
 
 		// assemble the response
-		resp = &pb.Response{
+		resp = &Response{
 			Control: pb.ResponseControl{
 				RequestId: rqID,
 			},
@@ -384,10 +384,10 @@ func (bpsc *BasicPubSubCollector) streamHandler(s network.Stream) {
 // handleResponsePayload unmarshals the ResponseBytes, and calls the notifHandler
 func (bpsc *BasicPubSubCollector) handleResponseBytes(respBytes []byte) (err error) {
 	var (
-		resp *pb.Response
+		resp *Response
 	)
 	if err == nil {
-		resp = &pb.Response{}
+		resp = &Response{}
 		err = resp.Unmarshal(respBytes)
 	}
 	if err == nil {
@@ -397,7 +397,7 @@ func (bpsc *BasicPubSubCollector) handleResponseBytes(respBytes []byte) (err err
 }
 
 // handleFinalResponse calls finalResponseHandler
-func (bpsc *BasicPubSubCollector) handleFinalResponse(resp *pb.Response) (err error) {
+func (bpsc *BasicPubSubCollector) handleFinalResponse(resp *Response) (err error) {
 
 	if resp == nil {
 		err = fmt.Errorf("unexpect nil response")

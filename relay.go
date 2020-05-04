@@ -20,7 +20,7 @@ type deduplicator interface {
 	// markSeen returns false if resp has been seen;
 	// return true if resp hasn't been seen before.
 	// The response will be marked seen after markSeen callation.
-	markSeen(resp *pb.Response) bool
+	markSeen(resp *Response) bool
 }
 
 // RelayPubSubCollector .
@@ -141,7 +141,7 @@ func (r *RelayPubSubCollector) Publish(topic string, data []byte, opts ...PubOpt
 		root, err = r.host.ID().MarshalBinary()
 	}
 	if err == nil {
-		req := &pb.Request{
+		req := &Request{
 			Control: pb.RequestControl{
 				Root:  root,
 				From:  root,
@@ -226,10 +226,10 @@ func (r *RelayPubSubCollector) topicHandle(topic string, msg *Message) {
 		)
 	}
 
-	var req *pb.Request
+	var req *Request
 	{
 		// unmarshal the received data into request struct
-		req = &pb.Request{}
+		req = &Request{}
 		err = req.Unmarshal(msg.Data)
 	}
 	if err == nil {
@@ -271,7 +271,7 @@ func (r *RelayPubSubCollector) topicHandle(topic string, msg *Message) {
 
 	var (
 		item *reqItem
-		resp *pb.Response
+		resp *Response
 		ctx  context.Context
 	)
 	if err == nil {
@@ -280,7 +280,7 @@ func (r *RelayPubSubCollector) topicHandle(topic string, msg *Message) {
 		item, ok, _ = r.reqCache.GetReqItem(rqID)
 		if !ok {
 			item = &reqItem{
-				finalHandler: func(context.Context, *pb.Response) {},
+				finalHandler: func(context.Context, *Response) {},
 				topic:        topic,
 				msg:          msg,
 			}
@@ -313,7 +313,7 @@ func (r *RelayPubSubCollector) topicHandle(topic string, msg *Message) {
 		}
 
 		// assemble the response
-		resp = &pb.Response{
+		resp = &Response{
 			Control: pb.ResponseControl{
 				RequestId: rqID,
 				Root:      req.Control.Root,
@@ -361,12 +361,12 @@ func (r *RelayPubSubCollector) responseStreamHandler(s network.Stream) {
 	var (
 		respBytes []byte
 		err       error
-		resp      *pb.Response
+		resp      *Response
 	)
 	respBytes, err = ioutil.ReadAll(s)
 	s.Close()
 	if err == nil {
-		resp = &pb.Response{}
+		resp = &Response{}
 		err = resp.Unmarshal(respBytes)
 	}
 	if err == nil {
@@ -389,7 +389,7 @@ func (r *RelayPubSubCollector) responseStreamHandler(s network.Stream) {
 	}
 }
 
-func (r *RelayPubSubCollector) handleAndForwardResponse(ctx context.Context, recv *pb.Response) (err error) {
+func (r *RelayPubSubCollector) handleAndForwardResponse(ctx context.Context, recv *Response) (err error) {
 
 	if recv == nil {
 		err = fmt.Errorf("unexpect nil response")
@@ -455,7 +455,7 @@ func (r *RelayPubSubCollector) handleAndForwardResponse(ctx context.Context, rec
 }
 
 // only called in root node
-func (r *RelayPubSubCollector) handleFinalResponse(ctx context.Context, recv *pb.Response) (err error) {
+func (r *RelayPubSubCollector) handleFinalResponse(ctx context.Context, recv *Response) (err error) {
 
 	if recv == nil {
 		err = fmt.Errorf("unexpect nil response")

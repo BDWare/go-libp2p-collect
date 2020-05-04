@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"bdware.org/libp2p/go-libp2p-collect/mock"
-	"bdware.org/libp2p/go-libp2p-collect/pb"
 )
 
 func TestSelfPub(t *testing.T) {
@@ -28,10 +27,10 @@ func TestSelfPub(t *testing.T) {
 
 	// handlePub and handleSub is both request handle,
 	// but handleSub will send back the response
-	handlePub := func(ctx context.Context, r *pb.Request) *pb.Intermediate {
+	handlePub := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, pubhost.ID(), peer.ID(r.Control.Root))
-		out := &pb.Intermediate{
+		out := &Intermediate{
 			Sendback: true,
 			Payload:  payload,
 		}
@@ -45,7 +44,7 @@ func TestSelfPub(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	okch := make(chan struct{})
-	notif := func(ctx context.Context, rp *pb.Response) {
+	notif := func(ctx context.Context, rp *Response) {
 		assert.Equal(t, payload, rp.Payload)
 		okch <- struct{}{}
 	}
@@ -84,19 +83,19 @@ func TestBasicSendRecv(t *testing.T) {
 
 	// handlePub and handleSub is both request handle,
 	// but handleSub will send back the response
-	handlePub := func(ctx context.Context, r *pb.Request) *pb.Intermediate {
+	handlePub := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, pubhost.ID(), peer.ID(r.Control.Root))
-		out := &pb.Intermediate{
+		out := &Intermediate{
 			Sendback: false,
 			Payload:  payload,
 		}
 		return out
 	}
-	handleSub := func(ctx context.Context, r *pb.Request) *pb.Intermediate {
+	handleSub := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, pubhost.ID(), peer.ID(r.Control.Root))
-		out := &pb.Intermediate{
+		out := &Intermediate{
 			Sendback: true,
 			Payload:  payload,
 		}
@@ -112,7 +111,7 @@ func TestBasicSendRecv(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	okch := make(chan struct{})
-	notif := func(ctx context.Context, rp *pb.Response) {
+	notif := func(ctx context.Context, rp *Response) {
 		assert.Equal(t, payload, rp.Payload)
 		okch <- struct{}{}
 	}
@@ -160,21 +159,21 @@ func TestBasicSendRecv(t *testing.T) {
 
 // 	// handlePub and handleSub is both request handle,
 // 	// but handleSub will send back the response
-// 	handlePub := func(ctx context.Context, r *pb.Request) *pb.Intermediate {
+// 	handlePub := func(ctx context.Context, r *Request) *Intermediate {
 // 		assert.Equal(t, payload, r.Payload)
 // 		assert.Equal(t, pubhost.ID(), peer.ID(r.Control.Root))
-// 		out := &pb.Intermediate{
+// 		out := &Intermediate{
 // 			Sendback: false,
 // 			Payload:  payload,
 // 		}
 // 		return out
 // 	}
 
-// 	var requests []*pb.Request
+// 	var requests []*Request
 // 	// lock protects requests
 // 	var lock sync.Mutex
 
-// 	handleSub := func(ctx context.Context, r *pb.Request) *pb.Intermediate {
+// 	handleSub := func(ctx context.Context, r *Request) *Intermediate {
 // 		assert.Equal(t, payload, r.Payload)
 // 		assert.Equal(t, pubhost.ID(), peer.ID(r.Control.Root))
 
@@ -184,7 +183,7 @@ func TestBasicSendRecv(t *testing.T) {
 // 		requests = append(requests, r)
 // 		lock.Unlock()
 
-// 		out := &pb.Intermediate{
+// 		out := &Intermediate{
 // 			Sendback: true,
 // 			Payload:  payload,
 // 		}
@@ -200,7 +199,7 @@ func TestBasicSendRecv(t *testing.T) {
 // 	time.Sleep(50 * time.Millisecond)
 
 // 	cnt := uint32(0)
-// 	notif := func(ctx context.Context, rp *pb.Response) {
+// 	notif := func(ctx context.Context, rp *Response) {
 // 		atomic.AddUint32(&cnt, 1)
 // 	}
 
@@ -223,8 +222,8 @@ func TestBasicSendRecv(t *testing.T) {
 // 	idgen := defaultReqIDGenerator()
 // 	for _, r := range requests {
 // 		// contruct response once again
-// 		resp := &pb.Response{
-// 			Control: &pb.ResponseControl{
+// 		resp := &Response{
+// 			Control: &ResponseControl{
 // 				RequestId: idgen(r),
 // 			},
 // 			Payload: payload,
@@ -275,19 +274,19 @@ func TestLeaveAndJoin(t *testing.T) {
 
 	// handlePub and handleSub is both request handle,
 	// but handleSub will send back the response
-	handlePub := func(ctx context.Context, r *pb.Request) *pb.Intermediate {
+	handlePub := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, pubhost.ID(), peer.ID(r.Control.Root))
-		out := &pb.Intermediate{
+		out := &Intermediate{
 			Sendback: false,
 			Payload:  payload,
 		}
 		return out
 	}
-	handleSub := func(ctx context.Context, r *pb.Request) *pb.Intermediate {
+	handleSub := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, pubhost.ID(), peer.ID(r.Control.Root))
-		out := &pb.Intermediate{
+		out := &Intermediate{
 			Sendback: true,
 			Payload:  payload,
 		}
@@ -303,7 +302,7 @@ func TestLeaveAndJoin(t *testing.T) {
 
 	okch := make(chan struct{})
 
-	notifOK := func(ctx context.Context, rp *pb.Response) {
+	notifOK := func(ctx context.Context, rp *Response) {
 		assert.Equal(t, payload, rp.Payload)
 		okch <- struct{}{}
 	}
@@ -322,7 +321,7 @@ func TestLeaveAndJoin(t *testing.T) {
 	assert.NoError(t, err)
 	time.Sleep(10 * time.Millisecond)
 
-	notifFail := func(ctx context.Context, rp *pb.Response) {
+	notifFail := func(ctx context.Context, rp *Response) {
 		assert.FailNow(t, "should not recv message")
 	}
 	err = pub.Publish(topic, payload, WithFinalRespHandler(notifFail))
@@ -362,10 +361,10 @@ func TestSelfNotif(t *testing.T) {
 
 	// handlePub and handleSub is both request handle,
 	// but handleSub will send back the response
-	handlePub := func(ctx context.Context, r *pb.Request) *pb.Intermediate {
+	handlePub := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, h.ID(), peer.ID(r.Control.Root))
-		out := &pb.Intermediate{
+		out := &Intermediate{
 			Sendback: true,
 			Payload:  payload,
 		}
@@ -376,7 +375,7 @@ func TestSelfNotif(t *testing.T) {
 	assert.NoError(t, err)
 
 	okch := make(chan struct{})
-	notif := func(ctx context.Context, rp *pb.Response) {
+	notif := func(ctx context.Context, rp *Response) {
 		assert.Equal(t, payload, rp.Payload)
 		okch <- struct{}{}
 	}
@@ -405,19 +404,19 @@ func TestRejoin(t *testing.T) {
 
 	// handlePub and handleSub is both request handle,
 	// but handleSub will send back the response
-	handlePub := func(ctx context.Context, r *pb.Request) *pb.Intermediate {
+	handlePub := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, h.ID(), peer.ID(r.Control.Root))
-		out := &pb.Intermediate{
+		out := &Intermediate{
 			Sendback: true,
 			Payload:  payload,
 		}
 		return out
 	}
-	anotherHandle := func(ctx context.Context, r *pb.Request) *pb.Intermediate {
+	anotherHandle := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, h.ID(), peer.ID(r.Control.Root))
-		out := &pb.Intermediate{
+		out := &Intermediate{
 			Sendback: true,
 			Payload:  another,
 		}
@@ -432,7 +431,7 @@ func TestRejoin(t *testing.T) {
 	assert.NoError(t, err)
 
 	okch := make(chan struct{})
-	notif := func(ctx context.Context, rp *pb.Response) {
+	notif := func(ctx context.Context, rp *Response) {
 		assert.Equal(t, another, rp.Payload)
 		okch <- struct{}{}
 	}

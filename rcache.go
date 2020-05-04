@@ -4,7 +4,6 @@ import (
 	"context"
 	"hash/fnv"
 
-	"bdware.org/libp2p/go-libp2p-collect/pb"
 	lru "github.com/hashicorp/golang-lru"
 )
 
@@ -142,7 +141,7 @@ func newResponseCache(size int) (*responseCache, error) {
 	}, err
 }
 
-func (r *responseCache) markSeen(resp *pb.Response) bool {
+func (r *responseCache) markSeen(resp *Response) bool {
 	var (
 		err   error
 		hash  uint64

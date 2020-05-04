@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-
-	"bdware.org/libp2p/go-libp2p-collect/pb"
 )
 
 // InitOpt is options used in NewBasicPubSubCollector
@@ -56,11 +54,11 @@ func WithRequestIDGenerator(idgen ReqIDGenerator) InitOpt {
 }
 
 // ReqIDGenerator is used to generate id for each request
-type ReqIDGenerator func(*pb.Request) string
+type ReqIDGenerator func(*Request) string
 
 // MakeDefaultReqIDGenerator returns default ReqIDGenerator
 func MakeDefaultReqIDGenerator() ReqIDGenerator {
-	return func(rq *pb.Request) string {
+	return func(rq *Request) string {
 		bs := make([]byte, 8)
 		binary.LittleEndian.PutUint64(bs, rq.Control.Seqno)
 		// string(rq.Control.Seqno) is not workable here
@@ -118,7 +116,7 @@ func NewJoinOptions(opts []JoinOpt) (out *JoinOpts, err error) {
 // RequestHandler is the callback function when receiving a request.
 // It will be called in every node joined the network.
 // The return value will be sent to the root (directly or relayedly).
-type RequestHandler func(ctx context.Context, req *pb.Request) *pb.Intermediate
+type RequestHandler func(ctx context.Context, req *Request) *Intermediate
 
 // WithRequestHandler registers request handler
 func WithRequestHandler(rqhandle RequestHandler) JoinOpt {
@@ -128,8 +126,8 @@ func WithRequestHandler(rqhandle RequestHandler) JoinOpt {
 	}
 }
 
-func defaultRequestHandler(context.Context, *pb.Request) *pb.Intermediate {
-	return &pb.Intermediate{
+func defaultRequestHandler(context.Context, *Request) *Intermediate {
+	return &Intermediate{
 		Sendback: false,
 		Payload:  []byte{},
 	}
@@ -137,7 +135,7 @@ func defaultRequestHandler(context.Context, *pb.Request) *pb.Intermediate {
 
 // ResponseHandler is the callback when a node receive a response.
 // the sendback in Intermediate will decide whether the response will be sent back to the root.
-type ResponseHandler func(context.Context, *pb.Response) *pb.Intermediate
+type ResponseHandler func(context.Context, *Response) *Intermediate
 
 // WithResponseHandler registers response handler
 func WithResponseHandler(handler ResponseHandler) JoinOpt {
@@ -147,8 +145,8 @@ func WithResponseHandler(handler ResponseHandler) JoinOpt {
 	}
 }
 
-func defaultResponseHandler(context.Context, *pb.Response) *pb.Intermediate {
-	return &pb.Intermediate{
+func defaultResponseHandler(context.Context, *Response) *Intermediate {
+	return &Intermediate{
 		Sendback: true,
 		Payload:  []byte{},
 	}
@@ -167,7 +165,7 @@ type PubOpts struct {
 func NewPublishOptions(opts []PubOpt) (out *PubOpts, err error) {
 	out = &PubOpts{
 		RequestContext:  context.TODO(),
-		FinalRespHandle: func(context.Context, *pb.Response) {},
+		FinalRespHandle: func(context.Context, *Response) {},
 	}
 	for _, opt := range opts {
 		if err == nil {
@@ -180,7 +178,7 @@ func NewPublishOptions(opts []PubOpt) (out *PubOpts, err error) {
 // FinalRespHandler is the callback function when the root node receiving a response.
 // It will be called only in the root node.
 // It will be called more than one time when the number of responses is larger than one.
-type FinalRespHandler func(context.Context, *pb.Response)
+type FinalRespHandler func(context.Context, *Response)
 
 // WithFinalRespHandler registers notifHandler
 func WithFinalRespHandler(handler FinalRespHandler) PubOpt {
