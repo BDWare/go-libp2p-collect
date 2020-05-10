@@ -35,7 +35,7 @@ type BasicPubSubCollector struct {
 	// After elimination, the response related to this request will be ignored.
 	reqCache *requestCache
 	ridgen   ReqIDGenerator
-	logger   Logger
+	logger   *standardLogger
 }
 
 // NewBasicPubSubCollector returns a new BasicPubSubCollector
@@ -80,7 +80,7 @@ func NewBasicPubSubCollector(h host.Host, options ...InitOpt) (bpsc *BasicPubSub
 			apsub:    apsub,
 			reqCache: reqCache,
 			ridgen:   opts.IDGenerator,
-			logger:   opts.Logger,
+			logger:   &standardLogger{opts.Logger},
 		}
 
 		// add stream handler when responses return
@@ -95,7 +95,11 @@ func NewBasicPubSubCollector(h host.Host, options ...InitOpt) (bpsc *BasicPubSub
 // Rejoin will refresh the requestHandler.
 func (bpsc *BasicPubSubCollector) Join(topic string, opts ...JoinOpt) (err error) {
 
-	bpsc.logger.Logf("debug", "basic join: %s", topic)
+	bpsc.logger.funcCall("debug", "Join",
+		map[string]interface{}{
+			"topic": topic,
+			"opts":  opts,
+		})
 
 	var options *JoinOpts
 	{
@@ -112,7 +116,7 @@ func (bpsc *BasicPubSubCollector) Join(topic string, opts ...JoinOpt) (err error
 	}
 
 	if err != nil {
-		bpsc.logger.Logf("error", "join: %v", err)
+		bpsc.logger.error(err)
 	}
 
 	return
@@ -121,7 +125,9 @@ func (bpsc *BasicPubSubCollector) Join(topic string, opts ...JoinOpt) (err error
 // Publish a serilized request payload.
 func (bpsc *BasicPubSubCollector) Publish(topic string, payload []byte, opts ...PubOpt) (err error) {
 
-	bpsc.logger.Logf("debug", "basic publish: %s", topic)
+	bpsc.logger.funcCall("debug", "publish", map[string]interface{}{
+		"topic": topic,
+	})
 
 	var (
 		root    []byte
@@ -161,7 +167,7 @@ func (bpsc *BasicPubSubCollector) Publish(topic string, payload []byte, opts ...
 	}
 
 	if err != nil {
-		bpsc.logger.Logf("error", "publish: %v", err)
+		bpsc.logger.error(err)
 	}
 
 	return
@@ -171,13 +177,15 @@ func (bpsc *BasicPubSubCollector) Publish(topic string, payload []byte, opts ...
 // The registered topichandles and responseHandlers will be closed.
 func (bpsc *BasicPubSubCollector) Leave(topic string) (err error) {
 
-	bpsc.logger.Logf("debug", "basic leave: %s", topic)
+	bpsc.logger.funcCall("debug", "leave", map[string]interface{}{
+		"topic": topic,
+	})
 
 	err = bpsc.apsub.Unsubscribe(topic)
 	bpsc.reqCache.RemoveTopic(topic)
 
 	if err != nil {
-		bpsc.logger.Logf("error", "leave: %v", err)
+		bpsc.logger.error(err)
 	}
 	return
 }
@@ -185,13 +193,13 @@ func (bpsc *BasicPubSubCollector) Leave(topic string) (err error) {
 // Close the BasicPubSubCollector.
 func (bpsc *BasicPubSubCollector) Close() (err error) {
 
-	bpsc.logger.Logf("debug", "basic close")
+	bpsc.logger.funcCall("debug", "close", nil)
 
 	bpsc.reqCache.RemoveAll()
 	err = bpsc.apsub.Close()
 
 	if err != nil {
-		bpsc.logger.Logf("error", "basic close: %v", err)
+		bpsc.logger.error(err)
 	}
 	return
 }
@@ -199,22 +207,29 @@ func (bpsc *BasicPubSubCollector) Close() (err error) {
 // topicHandle will be called when a request arrived.
 func (bpsc *BasicPubSubCollector) topicHandle(topic string, msg *Message) {
 
+	bpsc.logger.funcCall("debug", "topicHandle", map[string]interface{}{
+		"topic": topic,
+		"receive-from": func() string {
+			if msg == nil {
+				return ""
+			}
+			return msg.ReceivedFrom.Pretty()
+		}(),
+		"from": func() string {
+			if msg == nil {
+				return ""
+			}
+			pid, err := peer.IDFromBytes(msg.From)
+			if err != nil {
+				return ""
+			}
+			return pid.Pretty()
+		}(),
+	})
+
 	var err error
 	if msg == nil {
 		err = fmt.Errorf("unexpected nil msg")
-	}
-
-	if err == nil {
-		bpsc.logger.Logf(
-			"info",
-			`basic topicHandle:
-			topic: %s,
-			msg.from: %s,
-			msg.recvFrom: %s,`,
-			topic,
-			peer.ID(msg.From).ShortString(),
-			msg.ReceivedFrom.ShortString(),
-		)
 	}
 
 	var (
@@ -237,14 +252,6 @@ func (bpsc *BasicPubSubCollector) topicHandle(topic string, msg *Message) {
 	}
 	if err == nil {
 		rqID = bpsc.ridgen(req)
-
-		bpsc.logger.Logf(
-			"info",
-			`basic topicHandle:
-			req_id: %s,
-			`,
-			rqID,
-		)
 
 		// not self-publish, add a reqItem
 		if msg.ReceivedFrom != bpsc.host.ID() {
@@ -280,15 +287,7 @@ func (bpsc *BasicPubSubCollector) topicHandle(topic string, msg *Message) {
 		// Another protocol will be used to inform the root node.
 		if rqresult == nil || !rqresult.Sendback {
 			// drop any response if sendback is false or sendback == nil
-			bpsc.logger.Logf(
-				"info",
-				`basic topicHandle:
-				req_id: %s,
-				rqresult: %+v,
-				message: not sendback due to nil rqresult or sendback is set to false`,
-				rqID,
-				rqresult,
-			)
+			bpsc.logger.message("info", "not sendback")
 
 			goto handleEnd
 		}
@@ -309,27 +308,13 @@ func (bpsc *BasicPubSubCollector) topicHandle(topic string, msg *Message) {
 		// receive self-published message
 		if rootID == bpsc.host.ID() {
 
-			bpsc.logger.Logf(
-				"info",
-				`basic topicHandle:
-				req_id: %s,
-				message: receive self-published message`,
-				rqID,
-			)
+			bpsc.logger.message("info", "self publish")
 
 			err = bpsc.handleFinalResponse(resp)
 			goto handleEnd
 		}
 
-		bpsc.logger.Logf(
-			"info",
-			`basic topicHandle:
-			req_id: %s,
-			to: %s,
-			message: answer response`,
-			rqID,
-			rootID.ShortString(),
-		)
+		bpsc.logger.message("debug", "answering response")
 
 		s, err = bpsc.host.NewStream(ctx, rootID, bpsc.conf.responseProtocol)
 
@@ -343,21 +328,16 @@ func (bpsc *BasicPubSubCollector) topicHandle(topic string, msg *Message) {
 
 handleEnd:
 	if err != nil {
-		bpsc.logger.Logf(
-			"error",
-			`basic topichandle: 
-			topic:%s, 
-			error:%+v,`,
-			topic,
-			err,
-		)
+		bpsc.logger.error(err)
 	}
 }
 
 // streamHandler reads response from stream, and calls related notifHandler
 func (bpsc *BasicPubSubCollector) streamHandler(s network.Stream) {
 
-	bpsc.logger.Logf("info", "bpsc streamHandler: from: %s", s.Conn().RemotePeer().ShortString())
+	bpsc.logger.funcCall("debug", "streamHandler", map[string]interface{}{
+		"from": s.Conn().RemotePeer().Pretty(),
+	})
 	var (
 		respBytes []byte
 		err       error
@@ -369,14 +349,7 @@ func (bpsc *BasicPubSubCollector) streamHandler(s network.Stream) {
 	}
 
 	if err != nil {
-		bpsc.logger.Logf(
-			"error",
-			`bpsc streamHandler: 
-			from: %s,
-			error: %v,`,
-			s.Conn().RemotePeer().ShortString(),
-			err,
-		)
+		bpsc.logger.error(err)
 	}
 
 }
@@ -399,22 +372,20 @@ func (bpsc *BasicPubSubCollector) handleResponseBytes(respBytes []byte) (err err
 // handleFinalResponse calls finalResponseHandler
 func (bpsc *BasicPubSubCollector) handleFinalResponse(resp *Response) (err error) {
 
+	bpsc.logger.funcCall("debug", "handleFinalResponse", map[string]interface{}{
+		"receive-from": func() string {
+			if resp == nil {
+				return ""
+			}
+			pid, err := peer.IDFromBytes(resp.Control.From)
+			if err != nil {
+				return ""
+			}
+			return pid.Pretty()
+		}(),
+	})
 	if resp == nil {
 		err = fmt.Errorf("unexpect nil response")
-	}
-
-	if err == nil {
-		bpsc.logger.Logf(
-			"debug",
-			`bpsc handleFinalResponse: 
-			request_id: %s,
-			from: %s,
-			root: %s,
-			`,
-			resp.Control.RequestId,
-			peer.ID(resp.Control.From).ShortString(),
-			peer.ID(resp.Control.Root).ShortString(),
-		)
 	}
 
 	var (
@@ -436,12 +407,7 @@ func (bpsc *BasicPubSubCollector) handleFinalResponse(resp *Response) (err error
 	}
 
 	if err != nil {
-		bpsc.logger.Logf(
-			"error",
-			`bpsc handleFinalResponse: 
-			error: %v,`,
-			err,
-		)
+		bpsc.logger.error(err)
 	}
 	return err
 }
