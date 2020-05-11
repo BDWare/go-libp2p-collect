@@ -98,7 +98,6 @@ func (bpsc *BasicPubSubCollector) Join(topic string, opts ...JoinOpt) (err error
 	bpsc.logger.funcCall("debug", "Join",
 		map[string]interface{}{
 			"topic": topic,
-			"opts":  opts,
 		})
 
 	var options *JoinOpts

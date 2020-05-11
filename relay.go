@@ -32,7 +32,7 @@ type RelayPubSubCollector struct {
 	reqCache *requestCache
 	dedup    deduplicator
 	ridgen   ReqIDGenerator
-	logger   Logger
+	logger   *standardLogger
 }
 
 // NewRelayPubSubCollector .
@@ -65,7 +65,7 @@ func NewRelayPubSubCollector(h host.Host, options ...InitOpt) (r *RelayPubSubCol
 			reqCache: reqCache,
 			dedup:    respCache,
 			ridgen:   opts.IDGenerator,
-			logger:   opts.Logger,
+			logger:   &standardLogger{opts.Logger},
 		}
 		ap, err = NewAsyncPubSub(
 			h,
@@ -95,7 +95,10 @@ func NewRelayPubSubCollector(h host.Host, options ...InitOpt) (r *RelayPubSubCol
 // Register RequestHandle and ResponseHandle in opts.
 func (r *RelayPubSubCollector) Join(topic string, options ...JoinOpt) (err error) {
 
-	r.logger.Logf("debug", "relay join: %s", topic)
+	r.logger.funcCall("debug", "Join",
+		map[string]interface{}{
+			"topic": topic,
+		})
 
 	var opts *JoinOpts
 	{
@@ -117,7 +120,7 @@ func (r *RelayPubSubCollector) Join(topic string, options ...JoinOpt) (err error
 	}
 
 	if err != nil {
-		r.logger.Logf("error", "join: %v", err)
+		r.logger.error(err)
 	}
 
 	return
@@ -126,7 +129,9 @@ func (r *RelayPubSubCollector) Join(topic string, options ...JoinOpt) (err error
 // Publish a serialized request. Request should be encasulated in data argument.
 func (r *RelayPubSubCollector) Publish(topic string, data []byte, opts ...PubOpt) (err error) {
 
-	r.logger.Logf("debug", "relay publish: %s", topic)
+	r.logger.funcCall("debug", "publish", map[string]interface{}{
+		"topic": topic,
+	})
 
 	var (
 		root    []byte
@@ -171,7 +176,7 @@ func (r *RelayPubSubCollector) Publish(topic string, data []byte, opts ...PubOpt
 	}
 
 	if err != nil {
-		r.logger.Logf("error", "publish: %v", err)
+		r.logger.error(err)
 	}
 
 	return
@@ -180,13 +185,15 @@ func (r *RelayPubSubCollector) Publish(topic string, data []byte, opts ...PubOpt
 // Leave the overlay
 func (r *RelayPubSubCollector) Leave(topic string) (err error) {
 
-	r.logger.Logf("debug", "relay leave: %s", topic)
+	r.logger.funcCall("debug", "leave", map[string]interface{}{
+		"topic": topic,
+	})
 
 	err = r.apubsub.Unsubscribe(topic)
 	r.reqCache.RemoveTopic(topic)
 
 	if err != nil {
-		r.logger.Logf("error", "leave: %v", err)
+		r.logger.error(err)
 	}
 
 	return
@@ -195,35 +202,43 @@ func (r *RelayPubSubCollector) Leave(topic string) (err error) {
 // Close the BasicPubSubCollector.
 func (r *RelayPubSubCollector) Close() (err error) {
 
-	r.logger.Logf("debug", "relay close")
+	r.logger.funcCall("debug", "close", nil)
 
 	r.reqCache.RemoveAll()
 	err = r.apubsub.Close()
 
 	if err != nil {
-		r.logger.Logf("error", "relay close: %v", err)
+		r.logger.error(err)
 	}
+
 	return
 }
 
 func (r *RelayPubSubCollector) topicHandle(topic string, msg *Message) {
 
+	r.logger.funcCall("debug", "topicHandle", map[string]interface{}{
+		"topic": topic,
+		"receive-from": func() string {
+			if msg == nil {
+				return ""
+			}
+			return msg.ReceivedFrom.Pretty()
+		}(),
+		"from": func() string {
+			if msg == nil {
+				return ""
+			}
+			pid, err := peer.IDFromBytes(msg.From)
+			if err != nil {
+				return ""
+			}
+			return pid.Pretty()
+		}(),
+	})
+
 	var err error
 	if msg == nil {
 		err = fmt.Errorf("unexpected nil msg")
-	}
-
-	if err == nil {
-		r.logger.Logf(
-			"info",
-			`relay topicHandle:
-			topic: %s,
-			msg.from: %s,
-			msg.recvFrom: %s,`,
-			topic,
-			peer.ID(msg.From).ShortString(),
-			msg.ReceivedFrom.ShortString(),
-		)
 	}
 
 	var req *Request
@@ -248,13 +263,7 @@ func (r *RelayPubSubCollector) topicHandle(topic string, msg *Message) {
 	if err == nil {
 		rqID = r.ridgen(req)
 
-		r.logger.Logf(
-			"info",
-			`relay topicHandle:
-			req_id: %s,
-			`,
-			rqID,
-		)
+		r.logger.message("debug", fmt.Sprintf("reqID: %s", rqID))
 		// Dispatch request to relative topic request handler,
 		// which should be initialized in join function
 		rqhandleRaw, err = r.apubsub.LoadTopicItem(topic, requestHandlerKey)
@@ -298,16 +307,7 @@ func (r *RelayPubSubCollector) topicHandle(topic string, msg *Message) {
 		// Another protocol will be used to inform the root node.
 		if rqresult == nil || !rqresult.Sendback {
 			// drop any response if sendback is false or sendback == nil
-
-			r.logger.Logf(
-				"info",
-				`relay topicHandle:
-				req_id: %s,
-				rqresult: %+v,
-				message: not sendback due to nil rqresult or sendback is set to false`,
-				rqID,
-				rqresult,
-			)
+			r.logger.message("info", "not sendback")
 
 			return
 		}
@@ -325,30 +325,19 @@ func (r *RelayPubSubCollector) topicHandle(topic string, msg *Message) {
 		// receive self-published message
 		if peer.ID(req.Control.Root) == r.host.ID() {
 
-			r.logger.Logf(
-				"info",
-				`relay topicHandle:
-				req_id: %s,
-				message: receive self-published message`,
-				rqID,
-			)
+			r.logger.message("info", "self publish")
 
-			r.handleFinalResponse(ctx, resp)
+			err = r.handleFinalResponse(ctx, resp)
+
 		} else {
-			r.handleAndForwardResponse(ctx, resp)
+			r.logger.message("info", "answering response")
+			err = r.handleAndForwardResponse(ctx, resp)
 		}
 
 	}
 
 	if err != nil {
-		r.logger.Logf(
-			"error",
-			`relay topichandle: 
-			topic:%s, 
-			error:%+v,`,
-			topic,
-			err,
-		)
+		r.logger.error(err)
 	}
 
 	return
@@ -356,7 +345,7 @@ func (r *RelayPubSubCollector) topicHandle(topic string, msg *Message) {
 
 func (r *RelayPubSubCollector) responseStreamHandler(s network.Stream) {
 
-	r.logger.Logf("info", "relay streamHandler: from: %s", s.Conn().RemotePeer().ShortString())
+	r.logger.Logf("debug", "relay streamHandler: from: %s", s.Conn().RemotePeer().ShortString())
 
 	var (
 		respBytes []byte
@@ -378,35 +367,27 @@ func (r *RelayPubSubCollector) responseStreamHandler(s network.Stream) {
 	}
 
 	if err != nil {
-		r.logger.Logf(
-			"error",
-			`relay streamHandler: 
-			from: %s,
-			error: %v,`,
-			s.Conn().RemotePeer().ShortString(),
-			err,
-		)
+		r.logger.error(err)
 	}
 }
 
 func (r *RelayPubSubCollector) handleAndForwardResponse(ctx context.Context, recv *Response) (err error) {
 
+	r.logger.funcCall("debug", "handleAndForwardResponse", map[string]interface{}{
+		"receive-from": func() string {
+			if recv == nil {
+				return ""
+			}
+			pid, err := peer.IDFromBytes(recv.Control.From)
+			if err != nil {
+				return ""
+			}
+			return pid.Pretty()
+		}(),
+	})
+
 	if recv == nil {
 		err = fmt.Errorf("unexpect nil response")
-	}
-
-	if err == nil {
-		r.logger.Logf(
-			"debug",
-			`relay handleAndResponse: 
-			request_id: %s,
-			from: %s,
-			root: %s,
-			`,
-			recv.Control.RequestId,
-			peer.ID(recv.Control.From).ShortString(),
-			peer.ID(recv.Control.Root).ShortString(),
-		)
 	}
 
 	// check response cache, deduplicate and forward
@@ -443,12 +424,7 @@ func (r *RelayPubSubCollector) handleAndForwardResponse(ctx context.Context, rec
 	}
 
 	if err != nil {
-		r.logger.Logf(
-			"error",
-			`relay handleAndForwardResponse: 
-			error: %v,`,
-			err,
-		)
+		r.logger.error(err)
 	}
 
 	return
@@ -457,22 +433,21 @@ func (r *RelayPubSubCollector) handleAndForwardResponse(ctx context.Context, rec
 // only called in root node
 func (r *RelayPubSubCollector) handleFinalResponse(ctx context.Context, recv *Response) (err error) {
 
+	r.logger.funcCall("debug", "handleFinalResponse", map[string]interface{}{
+		"receive-from": func() string {
+			if recv == nil {
+				return ""
+			}
+			pid, err := peer.IDFromBytes(recv.Control.From)
+			if err != nil {
+				return ""
+			}
+			return pid.Pretty()
+		}(),
+	})
+
 	if recv == nil {
 		err = fmt.Errorf("unexpect nil response")
-	}
-
-	if err == nil {
-		r.logger.Logf(
-			"debug",
-			`relay handleFinalResponse: 
-			request_id: %s,
-			from: %s,
-			root: %s,
-			`,
-			recv.Control.RequestId,
-			peer.ID(recv.Control.From).ShortString(),
-			peer.ID(recv.Control.Root).ShortString(),
-		)
 	}
 
 	var (
@@ -490,13 +465,9 @@ func (r *RelayPubSubCollector) handleFinalResponse(ctx context.Context, recv *Re
 	}
 
 	if err != nil {
-		r.logger.Logf(
-			"error",
-			`relay handleFinalResponse: 
-			error: %v,`,
-			err,
-		)
+		r.logger.error(err)
 	}
+
 	return
 }
 
