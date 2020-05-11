@@ -246,6 +246,7 @@ func (bpsc *BasicPubSubCollector) topicHandle(topic string, msg *Message) {
 		ctx         context.Context
 	)
 	{
+		ctx = context.TODO()
 		// unmarshal the received data into request struct
 		req = &Request{}
 		err = req.Unmarshal(msg.Data)
