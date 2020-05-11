@@ -8,11 +8,16 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+var (
+	rid1 = RequestID("1")
+	rid2 = RequestID("2")
+)
+
 func TestRemove(t *testing.T) {
 	rcache, err := newRequestCache(1)
 	assert.NoError(t, err)
-	rcache.AddReqItem(context.Background(), "1", &reqItem{})
-	w, ok := rcache.GetReqWorker("1")
+	rcache.AddReqItem(context.Background(), rid1, &reqItem{})
+	w, ok := rcache.GetReqWorker(rid1)
 	assert.True(t, ok)
 	ori := w.onClose
 	close := make(chan struct{})
@@ -20,8 +25,8 @@ func TestRemove(t *testing.T) {
 		ori()
 		close <- struct{}{}
 	}
-	rcache.RemoveReqItem("1")
-	assert.True(t, !rcache.cache.Contains("1"), "unexpected item")
+	rcache.RemoveReqItem(rid1)
+	assert.True(t, !rcache.cache.Contains(rid1), "unexpected item")
 	select {
 	case <-time.After(2 * time.Second):
 		assert.Fail(t, "haven't called onClose")
@@ -33,8 +38,8 @@ func TestCancel(t *testing.T) {
 	rcache, err := newRequestCache(1)
 	assert.NoError(t, err)
 	cctx, cc := context.WithCancel(context.Background())
-	rcache.AddReqItem(cctx, "1", &reqItem{})
-	w, ok := rcache.GetReqWorker("1")
+	rcache.AddReqItem(cctx, rid1, &reqItem{})
+	w, ok := rcache.GetReqWorker(rid1)
 	assert.True(t, ok)
 	ori := w.onClose
 	close := make(chan struct{})
@@ -45,7 +50,7 @@ func TestCancel(t *testing.T) {
 	cc()
 	// wait for close
 	time.Sleep(1 * time.Millisecond)
-	assert.True(t, !rcache.cache.Contains("1"), "unexpected item")
+	assert.True(t, !rcache.cache.Contains(rid1), "unexpected item")
 	select {
 	case <-time.After(2 * time.Second):
 		assert.Fail(t, "haven't called onClose")
@@ -56,8 +61,8 @@ func TestCancel(t *testing.T) {
 func TestEvict(t *testing.T) {
 	rcache, err := newRequestCache(1)
 	assert.NoError(t, err)
-	rcache.AddReqItem(context.Background(), "1", &reqItem{})
-	w, ok := rcache.GetReqWorker("1")
+	rcache.AddReqItem(context.Background(), rid1, &reqItem{})
+	w, ok := rcache.GetReqWorker(rid1)
 	assert.True(t, ok)
 	ori := w.onClose
 	close := make(chan struct{})
@@ -65,8 +70,8 @@ func TestEvict(t *testing.T) {
 		ori()
 		close <- struct{}{}
 	}
-	rcache.AddReqItem(context.Background(), "2", &reqItem{})
-	assert.True(t, !rcache.cache.Contains("1"), "unexpected item")
+	rcache.AddReqItem(context.Background(), rid2, &reqItem{})
+	assert.True(t, !rcache.cache.Contains(rid1), "unexpected item")
 	select {
 	case <-time.After(2 * time.Second):
 		assert.Fail(t, "haven't called onClose")
@@ -75,10 +80,11 @@ func TestEvict(t *testing.T) {
 }
 
 func TestSameEvict(t *testing.T) {
+
 	rcache, err := newRequestCache(2)
 	assert.NoError(t, err)
-	rcache.AddReqItem(context.Background(), "1", &reqItem{})
-	w, ok := rcache.GetReqWorker("1")
+	rcache.AddReqItem(context.Background(), rid1, &reqItem{})
+	w, ok := rcache.GetReqWorker(rid1)
 	assert.True(t, ok)
 	ori := w.onClose
 	close := make(chan struct{})
@@ -86,8 +92,8 @@ func TestSameEvict(t *testing.T) {
 		ori()
 		close <- struct{}{}
 	}
-	rcache.AddReqItem(context.Background(), "1", &reqItem{})
-	assert.True(t, rcache.cache.Contains("1"), "unexpected nil item")
+	rcache.AddReqItem(context.Background(), rid1, &reqItem{})
+	assert.True(t, rcache.cache.Contains(rid1), "unexpected nil item")
 	select {
 	case <-time.After(2 * time.Second):
 		assert.Fail(t, "haven't called onClose")
