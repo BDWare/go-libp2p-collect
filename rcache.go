@@ -74,7 +74,7 @@ func newRequestCache(size int) (*requestCache, error) {
 // Add with the same reqid will make the previous one cancelled.
 // When context is done, item will be removed from the cache;
 // When the item is evicted, the context will be cancelled.
-func (rc *requestCache) AddReqItem(ctx context.Context, reqid string, item *reqItem) {
+func (rc *requestCache) AddReqItem(ctx context.Context, reqid RequestID, item *reqItem) {
 	rc.RemoveReqItem(reqid)
 	w := newReqWorker(ctx, item, func() {
 		rc.RemoveReqItem(reqid)
@@ -83,12 +83,12 @@ func (rc *requestCache) AddReqItem(ctx context.Context, reqid string, item *reqI
 }
 
 // RemoveReqItem .
-func (rc *requestCache) RemoveReqItem(reqid string) {
+func (rc *requestCache) RemoveReqItem(reqid RequestID) {
 	rc.cache.Remove(reqid)
 }
 
 // GetReqItem .
-func (rc *requestCache) GetReqItem(reqid string) (out *reqItem, ok bool, cancel func()) {
+func (rc *requestCache) GetReqItem(reqid RequestID) (out *reqItem, ok bool, cancel func()) {
 	var w *reqWorker
 	w, ok = rc.GetReqWorker(reqid)
 	if w != nil {
@@ -98,7 +98,7 @@ func (rc *requestCache) GetReqItem(reqid string) (out *reqItem, ok bool, cancel 
 }
 
 // GetReqItem .
-func (rc *requestCache) GetReqWorker(reqid string) (w *reqWorker, ok bool) {
+func (rc *requestCache) GetReqWorker(reqid RequestID) (w *reqWorker, ok bool) {
 	var v interface{}
 	v, ok = rc.cache.Get(reqid)
 	if ok {

@@ -57,7 +57,7 @@ message Response {
 
 message ResponseControl {
     // response related request id.
-    string request_id = 1;
+    string request_id = 1 [(gogoproto.casttype)="RequestID"];
     bytes root = 2;
     bytes from = 3;
 }

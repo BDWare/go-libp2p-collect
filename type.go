@@ -26,3 +26,6 @@ type Response = pb.Response
 
 // Intermediate type alias
 type Intermediate = pb.Intermediate
+
+// RequestID type alias
+type RequestID = pb.RequestID

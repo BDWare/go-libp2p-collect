@@ -135,7 +135,7 @@ func (r *RelayPubSubCollector) Publish(topic string, data []byte, opts ...PubOpt
 
 	var (
 		root    []byte
-		rqID    string
+		rqID    RequestID
 		options *PubOpts
 		tosend  []byte
 	)
@@ -258,12 +258,12 @@ func (r *RelayPubSubCollector) topicHandle(topic string, msg *Message) {
 		ok          bool
 		rqhandleRaw interface{}
 		rqhandle    RequestHandler
-		rqID        string
+		rqID        RequestID
 	)
 	if err == nil {
 		rqID = r.ridgen(req)
 
-		r.logger.message("debug", fmt.Sprintf("reqID: %s", rqID))
+		r.logger.message("debug", fmt.Sprintf("reqID: %v", rqID))
 		// Dispatch request to relative topic request handler,
 		// which should be initialized in join function
 		rqhandleRaw, err = r.apubsub.LoadTopicItem(topic, requestHandlerKey)
@@ -392,7 +392,7 @@ func (r *RelayPubSubCollector) handleAndForwardResponse(ctx context.Context, rec
 
 	// check response cache, deduplicate and forward
 	var (
-		reqID string
+		reqID RequestID
 		item  *reqItem
 		ok    bool
 	)
@@ -451,7 +451,7 @@ func (r *RelayPubSubCollector) handleFinalResponse(ctx context.Context, recv *Re
 	}
 
 	var (
-		reqID string
+		reqID RequestID
 		item  *reqItem
 		ok    bool
 	)

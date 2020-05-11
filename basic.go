@@ -130,7 +130,7 @@ func (bpsc *BasicPubSubCollector) Publish(topic string, payload []byte, opts ...
 
 	var (
 		root    []byte
-		rqID    string
+		rqID    RequestID
 		options *PubOpts
 		tosend  []byte
 	)
@@ -237,7 +237,7 @@ func (bpsc *BasicPubSubCollector) topicHandle(topic string, msg *Message) {
 		rqhandleRaw interface{}
 		rqhandle    RequestHandler
 		rqresult    *Intermediate
-		rqID        string
+		rqID        RequestID
 		rootID      peer.ID
 		resp        *Response
 		respBytes   []byte
@@ -389,7 +389,7 @@ func (bpsc *BasicPubSubCollector) handleFinalResponse(resp *Response) (err error
 	}
 
 	var (
-		reqID string
+		reqID RequestID
 		item  *reqItem
 		ok    bool
 	)

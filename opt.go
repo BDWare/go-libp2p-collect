@@ -54,15 +54,15 @@ func WithRequestIDGenerator(idgen ReqIDGenerator) InitOpt {
 }
 
 // ReqIDGenerator is used to generate id for each request
-type ReqIDGenerator func(*Request) string
+type ReqIDGenerator func(*Request) RequestID
 
 // MakeDefaultReqIDGenerator returns default ReqIDGenerator
 func MakeDefaultReqIDGenerator() ReqIDGenerator {
-	return func(rq *Request) string {
-		bs := make([]byte, 8)
-		binary.LittleEndian.PutUint64(bs, rq.Control.Seqno)
-		// string(rq.Control.Seqno) is not workable here
-		return string(rq.Control.Root) + string(bs)
+	return func(rq *Request) RequestID {
+		seqBin := make([]byte, 8)
+		binary.LittleEndian.PutUint64(seqBin, rq.Control.Seqno)
+		idBin := append(rq.Control.Root, seqBin...)
+		return RequestID(idBin)
 	}
 }
 
