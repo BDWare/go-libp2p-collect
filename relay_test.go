@@ -380,7 +380,7 @@ func TestFinalDeduplication(t *testing.T) {
 			Control: pb.ResponseControl{
 				RequestId: rqID,
 				Requester: req.Control.Requester,
-				From:      req.Control.From,
+				Sender:    req.Control.Sender,
 			},
 			Payload: payload,
 		}
@@ -466,7 +466,7 @@ func TestDeduplication(t *testing.T) {
 	handlerForB := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, hostA.ID(), r.Control.Requester)
-		assert.Equal(t, hostA.ID(), peer.ID(r.Control.From))
+		assert.Equal(t, hostA.ID(), peer.ID(r.Control.Sender))
 		atomic.StoreInt32(&recvB, 1)
 		out := &Intermediate{
 			Sendback: true,
@@ -479,11 +479,11 @@ func TestDeduplication(t *testing.T) {
 	handlerForC := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, hostA.ID(), r.Control.Requester)
-		if hostA.ID() == peer.ID(r.Control.From) {
+		if hostA.ID() == peer.ID(r.Control.Sender) {
 			assert.FailNow(t, "C isn't expected to receive req from A")
 			return nil
 		}
-		assert.Equal(t, hostB.ID(), peer.ID(r.Control.From))
+		assert.Equal(t, hostB.ID(), peer.ID(r.Control.Sender))
 		atomic.StoreInt32(&recvC, 1)
 		out := &Intermediate{
 			Sendback: true,
@@ -556,7 +556,7 @@ func TestNoRequestIDForResponse(t *testing.T) {
 	handlerForB := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, hostA.ID(), r.Control.Requester)
-		assert.Equal(t, hostA.ID(), peer.ID(r.Control.From), "B is expected to receive req from A")
+		assert.Equal(t, hostA.ID(), peer.ID(r.Control.Sender), "B is expected to receive req from A")
 		atomic.StoreInt32(&recvB, 1)
 		out := &Intermediate{
 			Sendback: true,
@@ -570,7 +570,7 @@ func TestNoRequestIDForResponse(t *testing.T) {
 	handlerForC := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, hostA.ID(), r.Control.Requester)
-		assert.Equal(t, hostB.ID(), peer.ID(r.Control.From), "C is expected to receive req from B")
+		assert.Equal(t, hostB.ID(), peer.ID(r.Control.Sender), "C is expected to receive req from B")
 		atomic.StoreInt32(&recvC, 1)
 		out := &Intermediate{
 			Sendback: true,

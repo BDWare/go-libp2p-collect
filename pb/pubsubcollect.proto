@@ -21,8 +21,8 @@ message Request {
 message RequestControl {
     // requester is the peerid of the origin node
     string requester = 1 [(gogoproto.casttype)="github.com/libp2p/go-libp2p-core/peer.ID"];
-    // from is the node who gives you this request
-    string from = 2 [(gogoproto.casttype)="github.com/libp2p/go-libp2p-core/peer.ID"];
+    // sender is the node who gives you this request
+    string sender = 2 [(gogoproto.casttype)="github.com/libp2p/go-libp2p-core/peer.ID"];
     // seqno is the sequence number helps to generate request id
     uint64 seqno = 3;
 
@@ -58,9 +58,12 @@ message Response {
 message ResponseControl {
     // response related request id.
     string request_id = 1 [(gogoproto.casttype)="RequestID"];
+    // requester is the node who send the request
     string requester = 2 [(gogoproto.casttype)="github.com/libp2p/go-libp2p-core/peer.ID"];
+    // responser is the node who generate the current response
     string responser = 3 [(gogoproto.casttype)="github.com/libp2p/go-libp2p-core/peer.ID"];
-    string from = 4 [(gogoproto.casttype)="github.com/libp2p/go-libp2p-core/peer.ID"];
+    // sender is the node who send you this response
+    string sender = 4 [(gogoproto.casttype)="github.com/libp2p/go-libp2p-core/peer.ID"];
 }
 
 message Responses {

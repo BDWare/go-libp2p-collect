@@ -146,7 +146,7 @@ func (r *RelayPubSubCollector) Publish(topic string, data []byte, opts ...PubOpt
 		req := &Request{
 			Control: pb.RequestControl{
 				Requester: myself,
-				From:      myself,
+				Sender:    myself,
 				Seqno:     atomic.AddUint64(&(r.seqno), 1),
 			},
 			Payload: data,
@@ -156,7 +156,7 @@ func (r *RelayPubSubCollector) Publish(topic string, data []byte, opts ...PubOpt
 
 		// Root and From will not be transmitted on network.
 		req.Control.Requester = ""
-		req.Control.From = ""
+		req.Control.Sender = ""
 
 		tosend, err = req.Marshal()
 	}
@@ -249,7 +249,7 @@ func (r *RelayPubSubCollector) topicHandle(topic string, msg *Message) {
 		// we can get it from message.From and ReceivedFrom, and then
 		// we pass req to requestHandler.
 		req.Control.Requester = peer.ID(msg.From)
-		req.Control.From = msg.ReceivedFrom
+		req.Control.Sender = msg.ReceivedFrom
 	}
 	var (
 		ok          bool
@@ -316,7 +316,7 @@ func (r *RelayPubSubCollector) topicHandle(topic string, msg *Message) {
 				RequestId: rqID,
 				Requester: req.Control.Requester,
 				Responser: myself,
-				From:      myself,
+				Sender:    myself,
 			},
 			Payload: rqresult.Payload,
 		}
@@ -377,7 +377,7 @@ func (r *RelayPubSubCollector) handleAndForwardResponse(ctx context.Context, rec
 			if recv == nil {
 				return ""
 			}
-			return recv.Control.From.Pretty()
+			return recv.Control.Sender.Pretty()
 		}(),
 	})
 
@@ -433,7 +433,7 @@ func (r *RelayPubSubCollector) handleFinalResponse(ctx context.Context, recv *Re
 			if recv == nil {
 				return ""
 			}
-			return recv.Control.From.Pretty()
+			return recv.Control.Sender.Pretty()
 		}(),
 	})
 

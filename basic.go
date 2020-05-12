@@ -141,7 +141,7 @@ func (bpsc *BasicPubSubCollector) Publish(topic string, payload []byte, opts ...
 		req := &Request{
 			Control: pb.RequestControl{
 				Requester: myself,
-				From:      myself,
+				Sender:    myself,
 				Seqno:     atomic.AddUint64(&(bpsc.seqno), 1),
 			},
 			Payload: payload,
@@ -370,7 +370,7 @@ func (bpsc *BasicPubSubCollector) handleFinalResponse(resp *Response) (err error
 			if resp == nil {
 				return ""
 			}
-			return resp.Control.From.Pretty()
+			return resp.Control.Sender.Pretty()
 		}(),
 	})
 	if resp == nil {
