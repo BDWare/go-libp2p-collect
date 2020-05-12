@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/stretchr/testify/assert"
 
 	"bdware.org/libp2p/go-libp2p-collect/mock"
@@ -29,7 +28,7 @@ func TestSelfPub(t *testing.T) {
 	// but handleSub will send back the response
 	handlePub := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
-		assert.Equal(t, pubhost.ID(), peer.ID(r.Control.Root))
+		assert.Equal(t, pubhost.ID(), r.Control.Requester)
 		out := &Intermediate{
 			Sendback: true,
 			Payload:  payload,
@@ -85,7 +84,7 @@ func TestBasicSendRecv(t *testing.T) {
 	// but handleSub will send back the response
 	handlePub := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
-		assert.Equal(t, pubhost.ID(), peer.ID(r.Control.Root))
+		assert.Equal(t, pubhost.ID(), r.Control.Requester)
 		out := &Intermediate{
 			Sendback: false,
 			Payload:  payload,
@@ -94,7 +93,7 @@ func TestBasicSendRecv(t *testing.T) {
 	}
 	handleSub := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
-		assert.Equal(t, pubhost.ID(), peer.ID(r.Control.Root))
+		assert.Equal(t, pubhost.ID(), r.Control.Requester)
 		out := &Intermediate{
 			Sendback: true,
 			Payload:  payload,
@@ -161,7 +160,7 @@ func TestBasicSendRecv(t *testing.T) {
 // 	// but handleSub will send back the response
 // 	handlePub := func(ctx context.Context, r *Request) *Intermediate {
 // 		assert.Equal(t, payload, r.Payload)
-// 		assert.Equal(t, pubhost.ID(), peer.ID(r.Control.Root))
+// 		assert.Equal(t, pubhost.ID(), r.Control.Requester)
 // 		out := &Intermediate{
 // 			Sendback: false,
 // 			Payload:  payload,
@@ -175,7 +174,7 @@ func TestBasicSendRecv(t *testing.T) {
 
 // 	handleSub := func(ctx context.Context, r *Request) *Intermediate {
 // 		assert.Equal(t, payload, r.Payload)
-// 		assert.Equal(t, pubhost.ID(), peer.ID(r.Control.Root))
+// 		assert.Equal(t, pubhost.ID(), r.Control.Requester)
 
 // 		// records requests in requests.
 // 		// after we check the counter, we will replay the response
@@ -276,7 +275,7 @@ func TestLeaveAndJoin(t *testing.T) {
 	// but handleSub will send back the response
 	handlePub := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
-		assert.Equal(t, pubhost.ID(), peer.ID(r.Control.Root))
+		assert.Equal(t, pubhost.ID(), r.Control.Requester)
 		out := &Intermediate{
 			Sendback: false,
 			Payload:  payload,
@@ -285,7 +284,7 @@ func TestLeaveAndJoin(t *testing.T) {
 	}
 	handleSub := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
-		assert.Equal(t, pubhost.ID(), peer.ID(r.Control.Root))
+		assert.Equal(t, pubhost.ID(), r.Control.Requester)
 		out := &Intermediate{
 			Sendback: true,
 			Payload:  payload,
@@ -363,7 +362,7 @@ func TestSelfNotif(t *testing.T) {
 	// but handleSub will send back the response
 	handlePub := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
-		assert.Equal(t, h.ID(), peer.ID(r.Control.Root))
+		assert.Equal(t, h.ID(), r.Control.Requester)
 		out := &Intermediate{
 			Sendback: true,
 			Payload:  payload,
@@ -406,7 +405,7 @@ func TestRejoin(t *testing.T) {
 	// but handleSub will send back the response
 	handlePub := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
-		assert.Equal(t, h.ID(), peer.ID(r.Control.Root))
+		assert.Equal(t, h.ID(), r.Control.Requester)
 		out := &Intermediate{
 			Sendback: true,
 			Payload:  payload,
@@ -415,7 +414,7 @@ func TestRejoin(t *testing.T) {
 	}
 	anotherHandle := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
-		assert.Equal(t, h.ID(), peer.ID(r.Control.Root))
+		assert.Equal(t, h.ID(), r.Control.Requester)
 		out := &Intermediate{
 			Sendback: true,
 			Payload:  another,

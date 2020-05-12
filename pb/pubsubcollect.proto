@@ -19,10 +19,10 @@ message Request {
 }
 
 message RequestControl {
-    // root is the peerid of the origin node
-    bytes root = 1;
+    // requester is the peerid of the origin node
+    string requester = 1 [(gogoproto.casttype)="github.com/libp2p/go-libp2p-core/peer.ID"];
     // from is the node who gives you this request
-    bytes from = 2;
+    string from = 2 [(gogoproto.casttype)="github.com/libp2p/go-libp2p-core/peer.ID"];
     // seqno is the sequence number helps to generate request id
     uint64 seqno = 3;
 
@@ -58,8 +58,9 @@ message Response {
 message ResponseControl {
     // response related request id.
     string request_id = 1 [(gogoproto.casttype)="RequestID"];
-    bytes root = 2;
-    bytes from = 3;
+    string requester = 2 [(gogoproto.casttype)="github.com/libp2p/go-libp2p-core/peer.ID"];
+    string responser = 3 [(gogoproto.casttype)="github.com/libp2p/go-libp2p-core/peer.ID"];
+    string from = 4 [(gogoproto.casttype)="github.com/libp2p/go-libp2p-core/peer.ID"];
 }
 
 message Responses {

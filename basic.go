@@ -129,7 +129,6 @@ func (bpsc *BasicPubSubCollector) Publish(topic string, payload []byte, opts ...
 	})
 
 	var (
-		root    []byte
 		rqID    RequestID
 		options *PubOpts
 		tosend  []byte
@@ -138,14 +137,12 @@ func (bpsc *BasicPubSubCollector) Publish(topic string, payload []byte, opts ...
 		options, err = NewPublishOptions(opts)
 	}
 	if err == nil {
-		// assemble the request struct
-		root, err = bpsc.host.ID().MarshalBinary()
-	}
-	if err == nil {
+		myself := bpsc.host.ID()
 		req := &Request{
 			Control: pb.RequestControl{
-				Root:  root,
-				Seqno: atomic.AddUint64(&(bpsc.seqno), 1),
+				Requester: myself,
+				From:      myself,
+				Seqno:     atomic.AddUint64(&(bpsc.seqno), 1),
 			},
 			Payload: payload,
 		}
@@ -238,7 +235,6 @@ func (bpsc *BasicPubSubCollector) topicHandle(topic string, msg *Message) {
 		rqhandle    RequestHandler
 		rqresult    *Intermediate
 		rqID        RequestID
-		rootID      peer.ID
 		resp        *Response
 		respBytes   []byte
 		s           network.Stream
@@ -302,11 +298,8 @@ func (bpsc *BasicPubSubCollector) topicHandle(topic string, msg *Message) {
 		respBytes, err = resp.Marshal()
 	}
 	if err == nil {
-		// find the root peer_id
-		rootID = peer.ID(req.Control.Root)
-
 		// receive self-published message
-		if rootID == bpsc.host.ID() {
+		if req.Control.Requester == bpsc.host.ID() {
 
 			bpsc.logger.message("info", "self publish")
 
@@ -316,7 +309,7 @@ func (bpsc *BasicPubSubCollector) topicHandle(topic string, msg *Message) {
 
 		bpsc.logger.message("debug", "answering response")
 
-		s, err = bpsc.host.NewStream(ctx, rootID, bpsc.conf.responseProtocol)
+		s, err = bpsc.host.NewStream(ctx, req.Control.Requester, bpsc.conf.responseProtocol)
 
 	}
 	// everything is done, send payload by write to stream
@@ -377,11 +370,7 @@ func (bpsc *BasicPubSubCollector) handleFinalResponse(resp *Response) (err error
 			if resp == nil {
 				return ""
 			}
-			pid, err := peer.IDFromBytes(resp.Control.From)
-			if err != nil {
-				return ""
-			}
-			return pid.Pretty()
+			return resp.Control.From.Pretty()
 		}(),
 	})
 	if resp == nil {

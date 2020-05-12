@@ -134,7 +134,6 @@ func (r *RelayPubSubCollector) Publish(topic string, data []byte, opts ...PubOpt
 	})
 
 	var (
-		root    []byte
 		rqID    RequestID
 		options *PubOpts
 		tosend  []byte
@@ -143,14 +142,12 @@ func (r *RelayPubSubCollector) Publish(topic string, data []byte, opts ...PubOpt
 		options, err = NewPublishOptions(opts)
 	}
 	if err == nil {
-		root, err = r.host.ID().MarshalBinary()
-	}
-	if err == nil {
+		myself := r.host.ID()
 		req := &Request{
 			Control: pb.RequestControl{
-				Root:  root,
-				From:  root,
-				Seqno: atomic.AddUint64(&(r.seqno), 1),
+				Requester: myself,
+				From:      myself,
+				Seqno:     atomic.AddUint64(&(r.seqno), 1),
 			},
 			Payload: data,
 		}
@@ -158,8 +155,8 @@ func (r *RelayPubSubCollector) Publish(topic string, data []byte, opts ...PubOpt
 		rqID = r.ridgen(req)
 
 		// Root and From will not be transmitted on network.
-		req.Control.Root = nil
-		req.Control.From = nil
+		req.Control.Requester = ""
+		req.Control.From = ""
 
 		tosend, err = req.Marshal()
 	}
@@ -251,8 +248,8 @@ func (r *RelayPubSubCollector) topicHandle(topic string, msg *Message) {
 		// req.Control.From and Control.Root is not transmitted on wire actually.
 		// we can get it from message.From and ReceivedFrom, and then
 		// we pass req to requestHandler.
-		req.Control.Root = msg.From
-		req.Control.From, err = msg.ReceivedFrom.MarshalBinary()
+		req.Control.Requester = peer.ID(msg.From)
+		req.Control.From = msg.ReceivedFrom
 	}
 	var (
 		ok          bool
@@ -313,17 +310,19 @@ func (r *RelayPubSubCollector) topicHandle(topic string, msg *Message) {
 		}
 
 		// assemble the response
+		myself := r.host.ID()
 		resp = &Response{
 			Control: pb.ResponseControl{
 				RequestId: rqID,
-				Root:      req.Control.Root,
-				From:      req.Control.From,
+				Requester: req.Control.Requester,
+				Responser: myself,
+				From:      myself,
 			},
 			Payload: rqresult.Payload,
 		}
 
 		// receive self-published message
-		if peer.ID(req.Control.Root) == r.host.ID() {
+		if req.Control.Requester == r.host.ID() {
 
 			r.logger.message("info", "self publish")
 
@@ -359,7 +358,7 @@ func (r *RelayPubSubCollector) responseStreamHandler(s network.Stream) {
 		err = resp.Unmarshal(respBytes)
 	}
 	if err == nil {
-		if peer.ID(resp.Control.Root) == r.host.ID() {
+		if resp.Control.Requester == r.host.ID() {
 			err = r.handleFinalResponse(context.Background(), resp)
 		} else {
 			err = r.handleAndForwardResponse(context.Background(), resp)
@@ -378,11 +377,7 @@ func (r *RelayPubSubCollector) handleAndForwardResponse(ctx context.Context, rec
 			if recv == nil {
 				return ""
 			}
-			pid, err := peer.IDFromBytes(recv.Control.From)
-			if err != nil {
-				return ""
-			}
-			return pid.Pretty()
+			return recv.Control.From.Pretty()
 		}(),
 	})
 
@@ -438,11 +433,7 @@ func (r *RelayPubSubCollector) handleFinalResponse(ctx context.Context, recv *Re
 			if recv == nil {
 				return ""
 			}
-			pid, err := peer.IDFromBytes(recv.Control.From)
-			if err != nil {
-				return ""
-			}
-			return pid.Pretty()
+			return recv.Control.From.Pretty()
 		}(),
 	})
 

@@ -61,7 +61,7 @@ func MakeDefaultReqIDGenerator() ReqIDGenerator {
 	return func(rq *Request) RequestID {
 		seqBin := make([]byte, 8)
 		binary.LittleEndian.PutUint64(seqBin, rq.Control.Seqno)
-		idBin := append(rq.Control.Root, seqBin...)
+		idBin := append([]byte(rq.Control.Requester), seqBin...)
 		return RequestID(idBin)
 	}
 }

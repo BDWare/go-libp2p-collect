@@ -41,7 +41,7 @@ func TestRelaySendRecv(t *testing.T) {
 	// but handleSub will send back the response
 	handlePub := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
-		assert.Equal(t, pubhost.ID(), peer.ID(r.Control.Root))
+		assert.Equal(t, pubhost.ID(), r.Control.Requester)
 		out := &Intermediate{
 			Sendback: false,
 			Payload:  payload,
@@ -50,7 +50,7 @@ func TestRelaySendRecv(t *testing.T) {
 	}
 	handleSub := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
-		assert.Equal(t, pubhost.ID(), peer.ID(r.Control.Root))
+		assert.Equal(t, pubhost.ID(), r.Control.Requester)
 		out := &Intermediate{
 			Sendback: true,
 			Payload:  payload,
@@ -100,7 +100,7 @@ func TestRelaySelfPub(t *testing.T) {
 	// but handleSub will send back the response
 	handlePub := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
-		assert.Equal(t, pubhost.ID(), peer.ID(r.Control.Root))
+		assert.Equal(t, pubhost.ID(), r.Control.Requester)
 		out := &Intermediate{
 			Sendback: true,
 			Payload:  payload,
@@ -146,7 +146,7 @@ func TestRelayRejoin(t *testing.T) {
 	// but handleSub will send back the response
 	handlePub := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
-		assert.Equal(t, h.ID(), peer.ID(r.Control.Root))
+		assert.Equal(t, h.ID(), r.Control.Requester)
 		out := &Intermediate{
 			Sendback: true,
 			Payload:  payload,
@@ -155,7 +155,7 @@ func TestRelayRejoin(t *testing.T) {
 	}
 	anotherHandle := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
-		assert.Equal(t, h.ID(), peer.ID(r.Control.Root))
+		assert.Equal(t, h.ID(), r.Control.Requester)
 		out := &Intermediate{
 			Sendback: true,
 			Payload:  another,
@@ -212,7 +212,7 @@ func TestRelayLeaveAndJoin(t *testing.T) {
 	// but handleSub will send back the response
 	handlePub := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
-		assert.Equal(t, pubhost.ID(), peer.ID(r.Control.Root))
+		assert.Equal(t, pubhost.ID(), r.Control.Requester)
 		out := &Intermediate{
 			Sendback: false,
 			Payload:  payload,
@@ -221,7 +221,7 @@ func TestRelayLeaveAndJoin(t *testing.T) {
 	}
 	handleSub := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
-		assert.Equal(t, pubhost.ID(), peer.ID(r.Control.Root))
+		assert.Equal(t, pubhost.ID(), r.Control.Requester)
 		out := &Intermediate{
 			Sendback: true,
 			Payload:  payload,
@@ -374,12 +374,12 @@ func TestFinalDeduplication(t *testing.T) {
 	// when B handles the request, B sends two responses to A directly, not using Intermediate
 	handleSub := func(ctx context.Context, req *Request) *Intermediate {
 		assert.Equal(t, payload, req.Payload)
-		assert.Equal(t, pubhost.ID(), peer.ID(req.Control.Root))
+		assert.Equal(t, pubhost.ID(), req.Control.Requester)
 		rqID := sub.ridgen(req)
 		resp := &Response{
 			Control: pb.ResponseControl{
 				RequestId: rqID,
-				Root:      req.Control.Root,
+				Requester: req.Control.Requester,
 				From:      req.Control.From,
 			},
 			Payload: payload,
@@ -390,7 +390,7 @@ func TestFinalDeduplication(t *testing.T) {
 			from      peer.ID
 		)
 		respBytes, _ = resp.Marshal()
-		from = peer.ID(req.Control.Root)
+		from = req.Control.Requester
 		s, err = sub.host.NewStream(context.Background(), from, sub.conf.responseProtocol)
 		assert.NoError(t, err)
 		_, err = s.Write(respBytes)
@@ -465,7 +465,7 @@ func TestDeduplication(t *testing.T) {
 	recvB := int32(0)
 	handlerForB := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
-		assert.Equal(t, hostA.ID(), peer.ID(r.Control.Root))
+		assert.Equal(t, hostA.ID(), r.Control.Requester)
 		assert.Equal(t, hostA.ID(), peer.ID(r.Control.From))
 		atomic.StoreInt32(&recvB, 1)
 		out := &Intermediate{
@@ -478,7 +478,7 @@ func TestDeduplication(t *testing.T) {
 	recvC := int32(0)
 	handlerForC := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
-		assert.Equal(t, hostA.ID(), peer.ID(r.Control.Root))
+		assert.Equal(t, hostA.ID(), r.Control.Requester)
 		if hostA.ID() == peer.ID(r.Control.From) {
 			assert.FailNow(t, "C isn't expected to receive req from A")
 			return nil
@@ -555,7 +555,7 @@ func TestNoRequestIDForResponse(t *testing.T) {
 	recvB := int32(0)
 	handlerForB := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
-		assert.Equal(t, hostA.ID(), peer.ID(r.Control.Root))
+		assert.Equal(t, hostA.ID(), r.Control.Requester)
 		assert.Equal(t, hostA.ID(), peer.ID(r.Control.From), "B is expected to receive req from A")
 		atomic.StoreInt32(&recvB, 1)
 		out := &Intermediate{
@@ -569,7 +569,7 @@ func TestNoRequestIDForResponse(t *testing.T) {
 	recvC := int32(0)
 	handlerForC := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
-		assert.Equal(t, hostA.ID(), peer.ID(r.Control.Root))
+		assert.Equal(t, hostA.ID(), r.Control.Requester)
 		assert.Equal(t, hostB.ID(), peer.ID(r.Control.From), "C is expected to receive req from B")
 		atomic.StoreInt32(&recvC, 1)
 		out := &Intermediate{
