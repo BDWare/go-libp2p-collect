@@ -1,6 +1,10 @@
 package collect
 
-import "bdware.org/libp2p/go-libp2p-collect/pb"
+import (
+	"io"
+
+	"bdware.org/libp2p/go-libp2p-collect/pb"
+)
 
 // PubSubCollector is a group communication module on topic-based overlay network.
 // It helps to dispatch request, and wait for corresponding responses.
@@ -16,6 +20,8 @@ type PubSubCollector interface {
 
 	// Leave the overlay
 	Leave(topic string) error
+
+	io.Closer
 }
 
 // Request type alias
