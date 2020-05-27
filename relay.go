@@ -8,8 +8,7 @@ import (
 	"sync/atomic"
 
 	"bdware.org/libp2p/go-libp2p-collect/pb"
-	pubsub "bdware.org/libp2p/go-libp2p-pubsub"
-	pubsub_pb "bdware.org/libp2p/go-libp2p-pubsub/pb"
+	"bdware.org/libp2p/go-libp2p-collect/pubsub"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -464,6 +463,6 @@ func (r *RelayPubSubCollector) handleFinalResponse(ctx context.Context, recv *Re
 
 type tracer RelayPubSubCollector
 
-func (t *tracer) Trace(evt *pubsub_pb.TraceEvent) {
+func (t *tracer) Trace(evt *pubsub.TraceEvent) {
 
 }

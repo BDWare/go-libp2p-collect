@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 
 	"bdware.org/libp2p/go-libp2p-collect/pb"
-	pubsub "bdware.org/libp2p/go-libp2p-pubsub"
+	"bdware.org/libp2p/go-libp2p-collect/pubsub"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"

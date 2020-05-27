@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	pubsub "bdware.org/libp2p/go-libp2p-pubsub"
+	"bdware.org/libp2p/go-libp2p-collect/pubsub"
 	host "github.com/libp2p/go-libp2p-core/host"
 )
 

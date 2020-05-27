@@ -2,8 +2,9 @@ module bdware.org/libp2p/go-libp2p-collect
 
 go 1.14
 
+replace github.com/libp2p/go-libp2p-pubsub => bdware.org/libp2p/go-libp2p-pubsub v0.2.6-bdw2
+
 require (
-	bdware.org/libp2p/go-libp2p-pubsub v0.2.6-upstream.0.20200413111108-955568387ea6
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/protobuf v1.3.2-0.20190517061210-b285ee9cfc6c // indirect
 	github.com/google/go-cmp v0.3.1 // indirect
@@ -13,6 +14,7 @@ require (
 	github.com/libp2p/go-libp2p v0.4.0
 	github.com/libp2p/go-libp2p-core v0.5.1
 	github.com/libp2p/go-libp2p-peerstore v0.2.3 // indirect
+	github.com/libp2p/go-libp2p-pubsub v0.0.0-00010101000000-000000000000
 	github.com/multiformats/go-multiaddr v0.2.1
 	github.com/multiformats/go-multibase v0.0.2 // indirect
 	github.com/stretchr/testify v1.5.1
