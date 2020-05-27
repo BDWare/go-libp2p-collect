@@ -36,10 +36,10 @@ type Conf struct {
 	// RequestCacheSize .
 	// RequestCache is used to store the request control message,
 	// which is for response routing.
-	RequestCacheSize int `json:"request_cache_size"`
+	RequestCacheSize int `json:"requestCacheSize"`
 	// ResponseCacheSize .
 	// ResponseCache is used to deduplicate the response.
-	ResponseCacheSize int `json:"response_cache_size"`
+	ResponseCacheSize int `json:"responseCacheSize"`
 }
 
 // MakeDefaultConf returns a default Conf instance
