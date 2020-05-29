@@ -45,7 +45,7 @@ func (rw *reqWorker) loop(ctx context.Context) {
 			if rw.onClose != nil {
 				rw.onClose()
 			}
-			break
+			return
 		}
 	}
 }
