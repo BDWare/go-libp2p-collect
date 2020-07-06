@@ -73,6 +73,7 @@ func NewRelayPubSubCollector(h host.Host, options ...InitOpt) (r *RelayPubSubCol
 				return pubsub.NewRandomSub(
 					context.Background(),
 					h,
+					defaultRandomSubSize,
 					pubsub.WithCustomProtocols([]protocol.ID{conf.requestProtocol}),
 					pubsub.WithEventTracer((*tracer)(r)),
 				)

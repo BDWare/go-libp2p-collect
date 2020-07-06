@@ -10,8 +10,9 @@ import (
 )
 
 const (
-	requestHandlerKey  = 'q'
-	responseHandlerKey = 'p'
+	requestHandlerKey    = 'q'
+	responseHandlerKey   = 'p'
+	defaultRandomSubSize = 10
 )
 
 // TopicHandle is the handle function of subscription.
@@ -86,7 +87,7 @@ func NewAsyncPubSub(h host.Host, opts ...TopicOpt) (apsub *AsyncPubSub, err erro
 
 	// if pubs is not set, use the default initialization
 	if err == nil && t.pubs == nil {
-		t.pubs, err = pubsub.NewRandomSub(context.Background(), h)
+		t.pubs, err = pubsub.NewRandomSub(context.Background(), h, defaultRandomSubSize)
 	}
 
 	if err == nil {

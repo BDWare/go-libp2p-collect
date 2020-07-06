@@ -63,6 +63,7 @@ func NewBasicPubSubCollector(h host.Host, options ...InitOpt) (bpsc *BasicPubSub
 						// TODO: add context in initopts
 						context.TODO(),
 						h,
+						defaultRandomSubSize,
 						// we do the pubsub with conf.RequestProtocol
 						pubsub.WithCustomProtocols([]protocol.ID{c.requestProtocol}),
 					)
