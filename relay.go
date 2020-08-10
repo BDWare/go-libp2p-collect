@@ -69,15 +69,23 @@ func NewRelayPubSubCollector(h host.Host, options ...InitOpt) (r *RelayPubSubCol
 		ap, err = NewAsyncPubSub(
 			h,
 			WithSelfNotif(true),
-			WithCustomPubSubFactory(func(h host.Host) (*pubsub.PubSub, error) {
-				return pubsub.NewRandomSub(
-					context.Background(),
-					h,
-					defaultRandomSubSize,
-					pubsub.WithCustomProtocols([]protocol.ID{conf.requestProtocol}),
-					pubsub.WithEventTracer((*tracer)(r)),
-				)
-			}),
+			WithCustomPubSubFactory(
+				func(h host.Host) (*pubsub.PubSub, error) {
+					psub, err := pubsub.NewRandomSub(
+						context.Background(),
+						h,
+						defaultRandomSubSize,
+						pubsub.WithCustomProtocols([]protocol.ID{conf.requestProtocol}),
+						pubsub.WithEventTracer((*tracer)(r)),
+					)
+					// replay the peers connected to pubsub via Notif
+					notif := (*pubsub.Notif)(psub)
+					for _, pid := range h.Peerstore().PeersWithAddrs() {
+						notif.Connected(nil, &pubsub.MockConn{Remote: pid})
+					}
+					return psub, err
+				},
+			),
 		)
 	}
 	if err == nil {

@@ -20,6 +20,9 @@ type Subscription = pubsub.Subscription
 //TraceEvent is type alias.
 type TraceEvent = pubsub_pb.TraceEvent
 
+// Notif is type alias.
+type Notif = pubsub.PubSubNotif
+
 // function aliases
 var (
 	NewRandomSub        = pubsub.NewRandomSub
