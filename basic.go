@@ -33,19 +33,19 @@ type BasicPubSubCollector struct {
 	// We don't know when there is no incoming response for a certain request.
 	// We have to eliminate the out-dated request resource.
 	// After elimination, the response related to this request will be ignored.
-	reqCache *requestCache
-	ridgen   ReqIDGenerator
-	logger   *standardLogger
+	reqWorkerPool *requestWorkerPool
+	ridgen        ReqIDGenerator
+	logger        *standardLogger
 }
 
 // NewBasicPubSubCollector returns a new BasicPubSubCollector
 func NewBasicPubSubCollector(h host.Host, options ...InitOpt) (bpsc *BasicPubSubCollector, err error) {
 
 	var (
-		opts     *InitOpts
-		c        *conf
-		apsub    *AsyncPubSub
-		reqCache *requestCache
+		opts          *InitOpts
+		c             *conf
+		apsub         *AsyncPubSub
+		reqWorkerPool *requestWorkerPool
 	)
 	{
 		opts, err = NewInitOpts(options)
@@ -71,17 +71,17 @@ func NewBasicPubSubCollector(h host.Host, options ...InitOpt) (bpsc *BasicPubSub
 		)
 	}
 	if err == nil {
-		reqCache, err = newRequestCache(c.requestCacheSize)
+		reqWorkerPool, err = newRequestWorkerPool(c.requestCacheSize)
 	}
 	if err == nil {
 		bpsc = &BasicPubSubCollector{
-			conf:     c,
-			seqno:    rand.Uint64(),
-			host:     h,
-			apsub:    apsub,
-			reqCache: reqCache,
-			ridgen:   opts.IDGenerator,
-			logger:   &standardLogger{opts.Logger},
+			conf:          c,
+			seqno:         rand.Uint64(),
+			host:          h,
+			apsub:         apsub,
+			reqWorkerPool: reqWorkerPool,
+			ridgen:        opts.IDGenerator,
+			logger:        &standardLogger{opts.Logger},
 		}
 
 		// add stream handler when responses return
@@ -153,7 +153,7 @@ func (bpsc *BasicPubSubCollector) Publish(topic string, payload []byte, opts ...
 	}
 	if err == nil {
 		// register notif handler
-		bpsc.reqCache.AddReqItem(options.RequestContext, rqID, &reqItem{
+		bpsc.reqWorkerPool.AddReqItem(options.RequestContext, rqID, &reqItem{
 			finalHandler: options.FinalRespHandle,
 			topic:        topic,
 		})
@@ -179,7 +179,7 @@ func (bpsc *BasicPubSubCollector) Leave(topic string) (err error) {
 	})
 
 	err = bpsc.apsub.Unsubscribe(topic)
-	bpsc.reqCache.RemoveTopic(topic)
+	bpsc.reqWorkerPool.RemoveTopic(topic)
 
 	if err != nil {
 		bpsc.logger.error(err)
@@ -192,7 +192,7 @@ func (bpsc *BasicPubSubCollector) Close() (err error) {
 
 	bpsc.logger.funcCall("debug", "close", nil)
 
-	bpsc.reqCache.RemoveAll()
+	bpsc.reqWorkerPool.RemoveAll()
 	err = bpsc.apsub.Close()
 
 	if err != nil {
@@ -252,12 +252,12 @@ func (bpsc *BasicPubSubCollector) topicHandle(topic string, msg *Message) {
 
 		// not self-publish, add a reqItem
 		if msg.ReceivedFrom != bpsc.host.ID() {
-			bpsc.reqCache.AddReqItem(context.Background(), rqID, &reqItem{
+			bpsc.reqWorkerPool.AddReqItem(context.Background(), rqID, &reqItem{
 				msg:   msg,
 				topic: topic,
 			})
 			// clean up later
-			defer bpsc.reqCache.RemoveReqItem(rqID)
+			defer bpsc.reqWorkerPool.RemoveReqItem(rqID)
 		}
 	}
 
@@ -386,7 +386,7 @@ func (bpsc *BasicPubSubCollector) handleFinalResponse(resp *Response) (err error
 
 	if err == nil {
 		reqID = resp.Control.RequestId
-		item, ok, _ = bpsc.reqCache.GetReqItem(reqID)
+		item, ok, _ = bpsc.reqWorkerPool.GetReqItem(reqID)
 		if !ok {
 			err = fmt.Errorf("cannot find reqitem for request %s", reqID)
 		}

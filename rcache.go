@@ -10,7 +10,7 @@ import (
 // requestCache .
 // requestCache is used to store the request control message,
 // which is for response routing.
-type requestCache struct {
+type requestWorkerPool struct {
 	cache *lru.Cache
 }
 
@@ -62,10 +62,10 @@ func onReqCacheEvict(key interface{}, value interface{}) {
 	// TODO: add logging
 }
 
-// newRequestCache .
-func newRequestCache(size int) (*requestCache, error) {
+// newRequestWorkerPool .
+func newRequestWorkerPool(size int) (*requestWorkerPool, error) {
 	l, err := lru.NewWithEvict(size, onReqCacheEvict)
-	return &requestCache{
+	return &requestWorkerPool{
 		cache: l,
 	}, err
 }
@@ -74,7 +74,7 @@ func newRequestCache(size int) (*requestCache, error) {
 // Add with the same reqid will make the previous one cancelled.
 // When context is done, item will be removed from the cache;
 // When the item is evicted, the context will be cancelled.
-func (rc *requestCache) AddReqItem(ctx context.Context, reqid RequestID, item *reqItem) {
+func (rc *requestWorkerPool) AddReqItem(ctx context.Context, reqid RequestID, item *reqItem) {
 	rc.RemoveReqItem(reqid)
 	w := newReqWorker(ctx, item, func() {
 		rc.RemoveReqItem(reqid)
@@ -83,12 +83,12 @@ func (rc *requestCache) AddReqItem(ctx context.Context, reqid RequestID, item *r
 }
 
 // RemoveReqItem .
-func (rc *requestCache) RemoveReqItem(reqid RequestID) {
+func (rc *requestWorkerPool) RemoveReqItem(reqid RequestID) {
 	rc.cache.Remove(reqid)
 }
 
 // GetReqItem .
-func (rc *requestCache) GetReqItem(reqid RequestID) (out *reqItem, ok bool, cancel func()) {
+func (rc *requestWorkerPool) GetReqItem(reqid RequestID) (out *reqItem, ok bool, cancel func()) {
 	var w *reqWorker
 	w, ok = rc.GetReqWorker(reqid)
 	if w != nil {
@@ -98,7 +98,7 @@ func (rc *requestCache) GetReqItem(reqid RequestID) (out *reqItem, ok bool, canc
 }
 
 // GetReqItem .
-func (rc *requestCache) GetReqWorker(reqid RequestID) (w *reqWorker, ok bool) {
+func (rc *requestWorkerPool) GetReqWorker(reqid RequestID) (w *reqWorker, ok bool) {
 	var v interface{}
 	v, ok = rc.cache.Get(reqid)
 	if ok {
@@ -108,7 +108,7 @@ func (rc *requestCache) GetReqWorker(reqid RequestID) (w *reqWorker, ok bool) {
 }
 
 // RemoveTopic .
-func (rc *requestCache) RemoveTopic(topic string) {
+func (rc *requestWorkerPool) RemoveTopic(topic string) {
 	for _, k := range rc.cache.Keys() {
 		if v, ok := rc.cache.Peek(k); ok {
 			w := v.(*reqWorker)
@@ -120,7 +120,7 @@ func (rc *requestCache) RemoveTopic(topic string) {
 }
 
 // RemoveAll .
-func (rc *requestCache) RemoveAll() {
+func (rc *requestWorkerPool) RemoveAll() {
 	rc.cache.Purge()
 }
 

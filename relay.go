@@ -24,25 +24,25 @@ type deduplicator interface {
 
 // RelayPubSubCollector .
 type RelayPubSubCollector struct {
-	conf     *conf
-	host     host.Host
-	seqno    uint64
-	apubsub  *AsyncPubSub
-	reqCache *requestCache
-	dedup    deduplicator
-	ridgen   ReqIDGenerator
-	logger   *standardLogger
+	conf          *conf
+	host          host.Host
+	seqno         uint64
+	apubsub       *AsyncPubSub
+	reqWorkerPool *requestWorkerPool
+	dedup         deduplicator
+	ridgen        ReqIDGenerator
+	logger        *standardLogger
 }
 
 // NewRelayPubSubCollector .
 func NewRelayPubSubCollector(h host.Host, options ...InitOpt) (r *RelayPubSubCollector, err error) {
 	// TODO: add lifetime control for randomSub
 	var (
-		opts      *InitOpts
-		conf      *conf
-		reqCache  *requestCache
-		respCache *responseCache
-		ap        *AsyncPubSub
+		opts          *InitOpts
+		conf          *conf
+		reqWorkerPool *requestWorkerPool
+		respCache     *responseCache
+		ap            *AsyncPubSub
 	)
 	{
 		opts, err = NewInitOpts(options)
@@ -51,20 +51,20 @@ func NewRelayPubSubCollector(h host.Host, options ...InitOpt) (r *RelayPubSubCol
 		conf, err = checkOptConfAndGetInnerConf(&opts.Conf)
 	}
 	if err == nil {
-		reqCache, err = newRequestCache(conf.requestCacheSize)
+		reqWorkerPool, err = newRequestWorkerPool(conf.requestCacheSize)
 	}
 	if err == nil {
 		respCache, err = newResponseCache(conf.requestCacheSize)
 	}
 	if err == nil {
 		r = &RelayPubSubCollector{
-			conf:     conf,
-			host:     h,
-			seqno:    rand.Uint64(),
-			reqCache: reqCache,
-			dedup:    respCache,
-			ridgen:   opts.IDGenerator,
-			logger:   &standardLogger{opts.Logger},
+			conf:          conf,
+			host:          h,
+			seqno:         rand.Uint64(),
+			reqWorkerPool: reqWorkerPool,
+			dedup:         respCache,
+			ridgen:        opts.IDGenerator,
+			logger:        &standardLogger{opts.Logger},
 		}
 		ap, err = NewAsyncPubSub(
 			h,
@@ -170,7 +170,7 @@ func (r *RelayPubSubCollector) Publish(topic string, data []byte, opts ...PubOpt
 	}
 	if err == nil {
 		// register notif handler
-		r.reqCache.AddReqItem(options.RequestContext, rqID, &reqItem{
+		r.reqWorkerPool.AddReqItem(options.RequestContext, rqID, &reqItem{
 			finalHandler: options.FinalRespHandle,
 			topic:        topic,
 		})
@@ -195,7 +195,7 @@ func (r *RelayPubSubCollector) Leave(topic string) (err error) {
 	})
 
 	err = r.apubsub.Unsubscribe(topic)
-	r.reqCache.RemoveTopic(topic)
+	r.reqWorkerPool.RemoveTopic(topic)
 
 	if err != nil {
 		r.logger.error(err)
@@ -209,7 +209,7 @@ func (r *RelayPubSubCollector) Close() (err error) {
 
 	r.logger.funcCall("debug", "close", nil)
 
-	r.reqCache.RemoveAll()
+	r.reqWorkerPool.RemoveAll()
 	err = r.apubsub.Close()
 
 	if err != nil {
@@ -291,14 +291,14 @@ func (r *RelayPubSubCollector) topicHandle(topic string, msg *Message) {
 	if err == nil {
 		// send payload
 		ctx = context.Background()
-		item, ok, _ = r.reqCache.GetReqItem(rqID)
+		item, ok, _ = r.reqWorkerPool.GetReqItem(rqID)
 		if !ok {
 			item = &reqItem{
 				finalHandler: func(context.Context, *Response) {},
 				topic:        topic,
 				msg:          msg,
 			}
-			r.reqCache.AddReqItem(ctx, rqID, item)
+			r.reqWorkerPool.AddReqItem(ctx, rqID, item)
 		} else {
 			item.msg = msg
 		}
@@ -400,7 +400,7 @@ func (r *RelayPubSubCollector) handleAndForwardResponse(ctx context.Context, rec
 		ok    bool
 	)
 	reqID = recv.Control.RequestId
-	item, ok, _ = r.reqCache.GetReqItem(reqID)
+	item, ok, _ = r.reqWorkerPool.GetReqItem(reqID)
 	if !ok {
 		err = fmt.Errorf("cannot find reqItem for response ID: %s", reqID)
 	}
@@ -455,7 +455,7 @@ func (r *RelayPubSubCollector) handleFinalResponse(ctx context.Context, recv *Re
 		ok    bool
 	)
 	reqID = recv.Control.RequestId
-	item, ok, _ = r.reqCache.GetReqItem(reqID)
+	item, ok, _ = r.reqWorkerPool.GetReqItem(reqID)
 	if !ok {
 		err = fmt.Errorf("cannot find reqItem for response ID: %s", reqID)
 	}

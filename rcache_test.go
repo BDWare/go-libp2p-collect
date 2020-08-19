@@ -14,7 +14,7 @@ var (
 )
 
 func TestRemove(t *testing.T) {
-	rcache, err := newRequestCache(1)
+	rcache, err := newRequestWorkerPool(1)
 	assert.NoError(t, err)
 	rcache.AddReqItem(context.Background(), rid1, &reqItem{})
 	w, ok := rcache.GetReqWorker(rid1)
@@ -35,7 +35,7 @@ func TestRemove(t *testing.T) {
 }
 
 func TestCancel(t *testing.T) {
-	rcache, err := newRequestCache(1)
+	rcache, err := newRequestWorkerPool(1)
 	assert.NoError(t, err)
 	cctx, cc := context.WithCancel(context.Background())
 	rcache.AddReqItem(cctx, rid1, &reqItem{})
@@ -59,7 +59,7 @@ func TestCancel(t *testing.T) {
 }
 
 func TestEvict(t *testing.T) {
-	rcache, err := newRequestCache(1)
+	rcache, err := newRequestWorkerPool(1)
 	assert.NoError(t, err)
 	rcache.AddReqItem(context.Background(), rid1, &reqItem{})
 	w, ok := rcache.GetReqWorker(rid1)
@@ -81,7 +81,7 @@ func TestEvict(t *testing.T) {
 
 func TestSameEvict(t *testing.T) {
 
-	rcache, err := newRequestCache(2)
+	rcache, err := newRequestWorkerPool(2)
 	assert.NoError(t, err)
 	rcache.AddReqItem(context.Background(), rid1, &reqItem{})
 	w, ok := rcache.GetReqWorker(rid1)

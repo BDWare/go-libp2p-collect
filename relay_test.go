@@ -579,7 +579,7 @@ func TestNoRequestIDForResponse(t *testing.T) {
 		// wait until A has received response from B, now it's safe to clear B's request cache
 		// B will not forward C's response to A
 		<-okch
-		pscB.reqCache.RemoveAll()
+		pscB.reqWorkerPool.RemoveAll()
 		return out
 	}
 
