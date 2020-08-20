@@ -2,8 +2,10 @@ package collect
 
 import (
 	"context"
-	"encoding/binary"
+	"crypto/sha512"
 	"fmt"
+
+	"bdware.org/libp2p/go-libp2p-collect/pubsub"
 )
 
 // InitOpt is options used in NewBasicPubSubCollector
@@ -11,17 +13,17 @@ type InitOpt func(*InitOpts) error
 
 // InitOpts is options used in NewBasicPubSubCollector
 type InitOpts struct {
-	Conf        Conf
-	IDGenerator ReqIDGenerator
-	Logger      Logger
+	Conf    Conf
+	ReqIDFn ReqIDFn
+	MsgIDFn pubsub.MsgIDFn
+	Logger  Logger
 }
 
 // NewInitOpts returns initopts
 func NewInitOpts(opts []InitOpt) (out *InitOpts, err error) {
 	out = &InitOpts{
-		Conf:        MakeDefaultConf(),
-		IDGenerator: MakeDefaultReqIDGenerator(),
-		Logger:      MakeDefaultLogger(),
+		Conf:   MakeDefaultConf(),
+		Logger: MakeDefaultLogger(),
 	}
 	for _, opt := range opts {
 		if err == nil {
@@ -29,7 +31,12 @@ func NewInitOpts(opts []InitOpt) (out *InitOpts, err error) {
 		}
 	}
 	if err != nil {
-		out = nil
+		return nil, err
+	}
+	// initialize reqIDFn and msgIDFn simultaneously
+	if out.ReqIDFn == nil {
+		out.ReqIDFn = DefaultReqIDFn
+		out.MsgIDFn = DefaultMsgIDFn
 	}
 	return
 }
@@ -43,27 +50,57 @@ func WithConf(conf Conf) InitOpt {
 }
 
 // WithRequestIDGenerator .
-func WithRequestIDGenerator(idgen ReqIDGenerator) InitOpt {
+func WithRequestIDGenerator(ridFn ReqIDFn) InitOpt {
 	return func(opts *InitOpts) error {
-		if idgen == nil {
+		if ridFn == nil {
 			return fmt.Errorf("unexpected nil ReqIDGenerator")
 		}
-		opts.IDGenerator = idgen
+		opts.ReqIDFn = ridFn
+		opts.MsgIDFn = reqIDFnToMsgIDFn(ridFn)
 		return nil
 	}
 }
 
-// ReqIDGenerator is used to generate id for each request
-type ReqIDGenerator func(*Request) RequestID
+// ReqIDFn is used to generate id for each request
+type ReqIDFn func(*Request) RequestID
 
-// MakeDefaultReqIDGenerator returns default ReqIDGenerator
-func MakeDefaultReqIDGenerator() ReqIDGenerator {
-	return func(rq *Request) RequestID {
-		seqBin := make([]byte, 8)
-		binary.LittleEndian.PutUint64(seqBin, rq.Control.Seqno)
-		idBin := append([]byte(rq.Control.Requester), seqBin...)
-		return RequestID(idBin)
+// DefaultReqIDFn returns default ReqIDGenerator.
+// SHA-512 hash function is called in it.
+func DefaultReqIDFn(rq *Request) RequestID {
+	bin, err := rq.Marshal()
+	if err != nil {
+		return RequestID("")
 	}
+	h := sha512.New()
+	return RequestID(h.Sum(bin))
+}
+
+// DefaultMsgIDFn should be used with DefaultMsgIDFn.
+func DefaultMsgIDFn(pmsg *pubsub.PbMessage) string {
+	h := sha512.New()
+	return string(h.Sum(pmsg.Data))
+}
+
+func reqIDFnToMsgIDFn(fn ReqIDFn) pubsub.MsgIDFn {
+	return func(pmsg *pubsub.PbMessage) string {
+		var (
+			err error
+			req *Request
+		)
+		err = req.Unmarshal(pmsg.Data)
+		if err != nil {
+			return ""
+		}
+		return string(fn(req))
+	}
+}
+
+func reqIDToMsgID(rid RequestID) string {
+	return string(rid)
+}
+
+func msgIDToReqID(mid string) RequestID {
+	return RequestID(mid)
 }
 
 // Logger .

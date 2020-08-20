@@ -34,7 +34,7 @@ type BasicPubSubCollector struct {
 	// We have to eliminate the out-dated request resource.
 	// After elimination, the response related to this request will be ignored.
 	reqWorkerPool *requestWorkerPool
-	ridgen        ReqIDGenerator
+	ridgen        ReqIDFn
 	logger        *standardLogger
 }
 
@@ -80,7 +80,7 @@ func NewBasicPubSubCollector(h host.Host, options ...InitOpt) (bpsc *BasicPubSub
 			host:          h,
 			apsub:         apsub,
 			reqWorkerPool: reqWorkerPool,
-			ridgen:        opts.IDGenerator,
+			ridgen:        opts.ReqIDFn,
 			logger:        &standardLogger{opts.Logger},
 		}
 

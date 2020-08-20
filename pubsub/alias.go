@@ -8,6 +8,9 @@ import (
 //Message is type alias.
 type Message = pubsub.Message
 
+//PbMessage is type alias.
+type PbMessage = pubsub_pb.Message
+
 //PubSub is type alias.
 type PubSub = pubsub.PubSub
 
@@ -23,9 +26,13 @@ type TraceEvent = pubsub_pb.TraceEvent
 // Notif is type alias.
 type Notif = pubsub.PubSubNotif
 
+// MsgIDFn is type alias.
+type MsgIDFn = pubsub.MsgIdFunction
+
 // function aliases
 var (
 	NewRandomSub        = pubsub.NewRandomSub
 	WithCustomProtocols = pubsub.WithCustomProtocols
 	WithEventTracer     = pubsub.WithEventTracer
+	WithMessageIDFn     = pubsub.WithMessageIdFn
 )

@@ -30,7 +30,7 @@ type RelayPubSubCollector struct {
 	apubsub       *AsyncPubSub
 	reqWorkerPool *requestWorkerPool
 	dedup         deduplicator
-	ridgen        ReqIDGenerator
+	ridgen        ReqIDFn
 	logger        *standardLogger
 }
 
@@ -63,7 +63,7 @@ func NewRelayPubSubCollector(h host.Host, options ...InitOpt) (r *RelayPubSubCol
 			seqno:         rand.Uint64(),
 			reqWorkerPool: reqWorkerPool,
 			dedup:         respCache,
-			ridgen:        opts.IDGenerator,
+			ridgen:        opts.ReqIDFn,
 			logger:        &standardLogger{opts.Logger},
 		}
 		ap, err = NewAsyncPubSub(
@@ -77,6 +77,7 @@ func NewRelayPubSubCollector(h host.Host, options ...InitOpt) (r *RelayPubSubCol
 						defaultRandomSubSize,
 						pubsub.WithCustomProtocols([]protocol.ID{conf.requestProtocol}),
 						pubsub.WithEventTracer((*tracer)(r)),
+						pubsub.WithMessageIDFn(opts.MsgIDFn),
 					)
 					// replay the peers connected to pubsub via Notif
 					notif := (*pubsub.Notif)(psub)
@@ -460,6 +461,11 @@ func (r *RelayPubSubCollector) handleFinalResponse(ctx context.Context, recv *Re
 		err = fmt.Errorf("cannot find reqItem for response ID: %s", reqID)
 	}
 	if err == nil && r.dedup.markSeen(recv) {
+		item.recvPeers.Add(recv.Control.Sender)
+		// Set no more incoming if all children has responded.
+		if item.sendPeers.Equal(&item.recvPeers) {
+			recv.Control.NoMoreIncoming = true
+		}
 		item.finalHandler(ctx, recv)
 	}
 
@@ -473,5 +479,21 @@ func (r *RelayPubSubCollector) handleFinalResponse(ctx context.Context, recv *Re
 type tracer RelayPubSubCollector
 
 func (t *tracer) Trace(evt *pubsub.TraceEvent) {
-
+	if evt.SendRPC == nil {
+		return
+	}
+	if len(evt.SendRPC.Meta.Subscription) > 0 {
+		return
+	}
+	psc := (*RelayPubSubCollector)(t)
+	sendTo := peer.ID(evt.SendRPC.SendTo)
+	// get requestID from msgID
+	for _, msgMeta := range evt.SendRPC.Meta.Messages {
+		rid := RequestID(msgMeta.MessageID)
+		item, ok, _ := psc.reqWorkerPool.GetReqItem(rid)
+		if !ok {
+			continue
+		}
+		item.sendPeers.Add(sendTo)
+	}
 }

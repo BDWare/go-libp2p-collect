@@ -3,8 +3,10 @@ package collect
 import (
 	"context"
 	"hash/fnv"
+	"sync"
 
 	lru "github.com/hashicorp/golang-lru"
+	"github.com/libp2p/go-libp2p-core/peer"
 )
 
 // requestCache .
@@ -19,6 +21,8 @@ type reqItem struct {
 	finalHandler FinalRespHandler
 	topic        string
 	msg          *Message
+	sendPeers    peerSet
+	recvPeers    peerSet
 }
 
 type reqWorker struct {
@@ -161,4 +165,36 @@ func (r *responseCache) markSeen(resp *Response) bool {
 		return true
 	}
 	return false
+}
+
+type peerSet struct {
+	rw    sync.RWMutex
+	peers map[peer.ID]struct{}
+}
+
+func (ps *peerSet) Add(p peer.ID) {
+	ps.rw.Lock()
+	defer ps.rw.Unlock()
+	ps.peers[p] = struct{}{}
+}
+
+func (ps *peerSet) Equal(another *peerSet) bool {
+	ps.rw.RLock()
+	defer ps.rw.RUnlock()
+	another.rw.RLock()
+	defer another.rw.RUnlock()
+	if len(ps.peers) != len(another.peers) {
+		return false
+	}
+	for pid := range ps.peers {
+		if _, ok := another.peers[pid]; !ok {
+			return false
+		}
+	}
+	for pid := range another.peers {
+		if _, ok := ps.peers[pid]; !ok {
+			return false
+		}
+	}
+	return true
 }
