@@ -2,7 +2,7 @@ module bdware.org/libp2p/go-libp2p-collect
 
 go 1.14
 
-replace github.com/libp2p/go-libp2p-pubsub => github.com/bdware/go-libp2p-pubsub v0.3.1-bdw.2
+replace github.com/libp2p/go-libp2p-pubsub => github.com/bdware/go-libp2p-pubsub v0.3.1-bdw.3
 
 require (
 	github.com/gogo/protobuf v1.3.1
