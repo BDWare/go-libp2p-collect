@@ -2,7 +2,6 @@ package collect
 
 import (
 	"context"
-	"fmt"
 	"math/rand"
 	"testing"
 	"time"
@@ -616,11 +615,8 @@ func TestNoMoreIncoming(t *testing.T) {
 	// |
 	// C
 	mnet := mock.NewMockNet()
-	hostA, err := mnet.NewLinkedPeer()
-	assert.NoError(t, err)
-	pscA, err := NewRelayPubSubCollector(hostA, WithLogger((*testLogger)(t)))
-	assert.NoError(t, err)
-	childrenCnt := 5
+
+	childrenCnt := 1
 	topic := "test-topic"
 	payload := []byte{1, 2, 3}
 	handleCnt := int32(0)
@@ -633,6 +629,14 @@ func TestNoMoreIncoming(t *testing.T) {
 			Payload:  randPayload,
 		}
 	}
+
+	hostA, err := mnet.NewLinkedPeer()
+	assert.NoError(t, err)
+	pscA, err := NewRelayPubSubCollector(hostA)
+	assert.NoError(t, err)
+	err = pscA.Join(topic, WithRequestHandler(handler))
+	assert.NoError(t, err)
+
 	for i := 0; i < childrenCnt; i++ {
 		childHost, err := mnet.NewLinkedPeer()
 		assert.NoError(t, err)
@@ -641,16 +645,14 @@ func TestNoMoreIncoming(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 		_, err = mnet.ConnectPeers(hostA.ID(), childHost.ID())
 		assert.NoError(t, err)
-		// time to connect
-		childPSC.Join(topic, WithRequestHandler(handler))
+		err = childPSC.Join(topic, WithRequestHandler(handler))
+		assert.NoError(t, err)
 	}
+
+	time.Sleep(100 * time.Millisecond)
 	falseCnt := int32(0)
 	trueCnt := int32(0)
-	// wg := sync.WaitGroup{}
-	// wg.Add(childrenCnt)
 	final := func(ctx context.Context, resp *Response) {
-		// wg.Done()
-		fmt.Println("final")
 		if !resp.Control.NoMoreIncoming {
 			atomic.AddInt32(&falseCnt, 1)
 		} else {
@@ -658,12 +660,11 @@ func TestNoMoreIncoming(t *testing.T) {
 		}
 	}
 	pscA.Publish(topic, payload, WithFinalRespHandler(final))
-	// time to wait
-	// wg.Wait()
-	time.Sleep(1 * time.Second)
+	// time to wait for event handling
+	time.Sleep(100 * time.Millisecond)
 	assert.Equal(t, int32(1), atomic.LoadInt32(&trueCnt))
 	assert.Equal(t, int32(childrenCnt), atomic.LoadInt32(&falseCnt))
-	assert.Equal(t, int32(childrenCnt), atomic.LoadInt32(&handleCnt))
+	assert.Equal(t, int32(childrenCnt+1), atomic.LoadInt32(&handleCnt))
 }
 
 type testLogger testing.T

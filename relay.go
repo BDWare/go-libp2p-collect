@@ -465,9 +465,10 @@ func (r *RelayPubSubCollector) handleFinalResponse(ctx context.Context, recv *Re
 		err = fmt.Errorf("cannot find reqItem for response ID: %s", reqID)
 	}
 	if err == nil && r.dedup.markSeen(recv) {
-		item.recvPeers.Add(recv.Control.Sender)
-		r.logger.Logf("debug", "send: %v", item.sendPeers)
-		r.logger.Logf("debug", "recv: %v", item.recvPeers)
+		// add any peerID if sender is not myself
+		if recv.Control.Sender != r.host.ID() {
+			item.recvPeers.Add(recv.Control.Sender)
+		}
 		// Set no more incoming if all children has responded.
 		if item.sendPeers.Equal(item.recvPeers) {
 			recv.Control.NoMoreIncoming = true
@@ -490,6 +491,8 @@ func (t *tracer) Trace(evt *pubsub.TraceEvent) {
 	}
 
 	psc := (*RelayPubSubCollector)(t)
+
+	psc.logger.funcCall("debug", "trace", nil)
 
 	rid := RequestID(evt.SendMessageDone.MessageID)
 	item, ok, _ := psc.reqWorkerPool.GetReqItem(rid)
