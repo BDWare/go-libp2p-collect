@@ -30,7 +30,7 @@ type RelayPubSubCollector struct {
 	apubsub       *AsyncPubSub
 	reqWorkerPool *requestWorkerPool
 	dedup         deduplicator
-	ridgen        ReqIDFn
+	ridFn         ReqIDFn
 	logger        *standardLogger
 }
 
@@ -63,7 +63,7 @@ func NewRelayPubSubCollector(h host.Host, options ...InitOpt) (r *RelayPubSubCol
 			seqno:         rand.Uint64(),
 			reqWorkerPool: reqWorkerPool,
 			dedup:         respCache,
-			ridgen:        opts.ReqIDFn,
+			ridFn:         opts.ReqIDFn,
 			logger:        &standardLogger{opts.Logger},
 		}
 		ap, err = NewAsyncPubSub(
@@ -161,11 +161,11 @@ func (r *RelayPubSubCollector) Publish(topic string, data []byte, opts ...PubOpt
 			Payload: data,
 		}
 
-		rqID = r.ridgen(req)
+		rqID = r.ridFn(req)
 
 		// Root and From will not be transmitted on network.
-		req.Control.Requester = ""
-		req.Control.Sender = ""
+		// req.Control.Requester = ""
+		// req.Control.Sender = ""
 
 		tosend, err = req.Marshal()
 	}
@@ -174,6 +174,8 @@ func (r *RelayPubSubCollector) Publish(topic string, data []byte, opts ...PubOpt
 		r.reqWorkerPool.AddReqItem(options.RequestContext, rqID, &reqItem{
 			finalHandler: options.FinalRespHandle,
 			topic:        topic,
+			sendPeers:    newPeerSet(),
+			recvPeers:    newPeerSet(),
 		})
 
 		//  publish marshaled request
@@ -267,7 +269,7 @@ func (r *RelayPubSubCollector) topicHandle(topic string, msg *Message) {
 		rqID        RequestID
 	)
 	if err == nil {
-		rqID = r.ridgen(req)
+		rqID = r.ridFn(req)
 
 		r.logger.message("debug", fmt.Sprintf("reqID: %v", rqID))
 		// Dispatch request to relative topic request handler,
@@ -298,6 +300,8 @@ func (r *RelayPubSubCollector) topicHandle(topic string, msg *Message) {
 				finalHandler: func(context.Context, *Response) {},
 				topic:        topic,
 				msg:          msg,
+				sendPeers:    newPeerSet(),
+				recvPeers:    newPeerSet(),
 			}
 			r.reqWorkerPool.AddReqItem(ctx, rqID, item)
 		} else {
@@ -462,8 +466,10 @@ func (r *RelayPubSubCollector) handleFinalResponse(ctx context.Context, recv *Re
 	}
 	if err == nil && r.dedup.markSeen(recv) {
 		item.recvPeers.Add(recv.Control.Sender)
+		r.logger.Logf("debug", "send: %v", item.sendPeers)
+		r.logger.Logf("debug", "recv: %v", item.recvPeers)
 		// Set no more incoming if all children has responded.
-		if item.sendPeers.Equal(&item.recvPeers) {
+		if item.sendPeers.Equal(item.recvPeers) {
 			recv.Control.NoMoreIncoming = true
 		}
 		item.finalHandler(ctx, recv)

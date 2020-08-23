@@ -2,6 +2,8 @@ package collect
 
 import (
 	"context"
+	"fmt"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -375,7 +377,7 @@ func TestFinalDeduplication(t *testing.T) {
 	handleSub := func(ctx context.Context, req *Request) *Intermediate {
 		assert.Equal(t, payload, req.Payload)
 		assert.Equal(t, pubhost.ID(), req.Control.Requester)
-		rqID := sub.ridgen(req)
+		rqID := sub.ridFn(req)
 		resp := &Response{
 			Control: pb.ResponseControl{
 				RequestId: rqID,
@@ -607,4 +609,66 @@ func TestNoRequestIDForResponse(t *testing.T) {
 	assert.Equal(t, atomic.LoadInt32(&count), int32(1), "A should receive only 1 response")
 	assert.Equal(t, atomic.LoadInt32(&recvB), int32(1))
 	assert.Equal(t, atomic.LoadInt32(&recvC), int32(1))
+}
+
+func TestNoMoreIncoming(t *testing.T) {
+	// A -- B
+	// |
+	// C
+	mnet := mock.NewMockNet()
+	hostA, err := mnet.NewLinkedPeer()
+	assert.NoError(t, err)
+	pscA, err := NewRelayPubSubCollector(hostA, WithLogger((*testLogger)(t)))
+	assert.NoError(t, err)
+	childrenCnt := 5
+	topic := "test-topic"
+	payload := []byte{1, 2, 3}
+	handleCnt := int32(0)
+	handler := func(ctx context.Context, req *Request) *Intermediate {
+		randPayload := make([]byte, 10)
+		rand.Read(randPayload)
+		atomic.AddInt32(&handleCnt, 1)
+		return &pb.Intermediate{
+			Sendback: true,
+			Payload:  randPayload,
+		}
+	}
+	for i := 0; i < childrenCnt; i++ {
+		childHost, err := mnet.NewLinkedPeer()
+		assert.NoError(t, err)
+		childPSC, err := NewRelayPubSubCollector(childHost)
+		assert.NoError(t, err)
+		time.Sleep(10 * time.Millisecond)
+		_, err = mnet.ConnectPeers(hostA.ID(), childHost.ID())
+		assert.NoError(t, err)
+		// time to connect
+		childPSC.Join(topic, WithRequestHandler(handler))
+	}
+	falseCnt := int32(0)
+	trueCnt := int32(0)
+	// wg := sync.WaitGroup{}
+	// wg.Add(childrenCnt)
+	final := func(ctx context.Context, resp *Response) {
+		// wg.Done()
+		fmt.Println("final")
+		if !resp.Control.NoMoreIncoming {
+			atomic.AddInt32(&falseCnt, 1)
+		} else {
+			atomic.AddInt32(&trueCnt, 1)
+		}
+	}
+	pscA.Publish(topic, payload, WithFinalRespHandler(final))
+	// time to wait
+	// wg.Wait()
+	time.Sleep(1 * time.Second)
+	assert.Equal(t, int32(1), atomic.LoadInt32(&trueCnt))
+	assert.Equal(t, int32(childrenCnt), atomic.LoadInt32(&falseCnt))
+	assert.Equal(t, int32(childrenCnt), atomic.LoadInt32(&handleCnt))
+}
+
+type testLogger testing.T
+
+func (l *testLogger) Logf(level, format string, args ...interface{}) {
+	(*testing.T)(l).Logf("%s:", level)
+	(*testing.T)(l).Logf(format, args...)
 }

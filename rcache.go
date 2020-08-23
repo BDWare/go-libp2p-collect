@@ -21,8 +21,8 @@ type reqItem struct {
 	finalHandler FinalRespHandler
 	topic        string
 	msg          *Message
-	sendPeers    peerSet
-	recvPeers    peerSet
+	sendPeers    *peerSet
+	recvPeers    *peerSet
 }
 
 type reqWorker struct {
@@ -167,6 +167,13 @@ func (r *responseCache) markSeen(resp *Response) bool {
 	return false
 }
 
+func newPeerSet() *peerSet {
+	return &peerSet{
+		rw:    sync.RWMutex{},
+		peers: make(map[peer.ID]struct{}),
+	}
+}
+
 type peerSet struct {
 	rw    sync.RWMutex
 	peers map[peer.ID]struct{}
@@ -197,4 +204,15 @@ func (ps *peerSet) Equal(another *peerSet) bool {
 		}
 	}
 	return true
+}
+
+func (ps *peerSet) String() string {
+	ps.rw.RLock()
+	defer ps.rw.RUnlock()
+	out := "[\n"
+	for p := range ps.peers {
+		out += p.ShortString() + ",\n"
+	}
+	out += "]\n"
+	return out
 }

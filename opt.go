@@ -3,6 +3,7 @@ package collect
 import (
 	"context"
 	"crypto/sha512"
+	"encoding/hex"
 	"fmt"
 
 	"bdware.org/libp2p/go-libp2p-collect/pubsub"
@@ -72,13 +73,15 @@ func DefaultReqIDFn(rq *Request) RequestID {
 		return RequestID("")
 	}
 	h := sha512.New()
-	return RequestID(h.Sum(bin))
+	out := RequestID(hex.EncodeToString(h.Sum(bin)))
+	return out
 }
 
 // DefaultMsgIDFn should be used with DefaultMsgIDFn.
 func DefaultMsgIDFn(pmsg *pubsub.PbMessage) string {
 	h := sha512.New()
-	return string(h.Sum(pmsg.Data))
+	out := string(hex.EncodeToString(h.Sum(pmsg.Data)))
+	return out
 }
 
 func reqIDFnToMsgIDFn(fn ReqIDFn) pubsub.MsgIDFn {
