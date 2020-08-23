@@ -485,21 +485,18 @@ func (r *RelayPubSubCollector) handleFinalResponse(ctx context.Context, recv *Re
 type tracer RelayPubSubCollector
 
 func (t *tracer) Trace(evt *pubsub.TraceEvent) {
-	if evt.SendRPC == nil {
+	if evt.SendMessageDone == nil {
 		return
 	}
-	if len(evt.SendRPC.Meta.Subscription) > 0 {
-		return
-	}
+
 	psc := (*RelayPubSubCollector)(t)
-	sendTo := peer.ID(evt.SendRPC.SendTo)
-	// get requestID from msgID
-	for _, msgMeta := range evt.SendRPC.Meta.Messages {
-		rid := RequestID(msgMeta.MessageID)
-		item, ok, _ := psc.reqWorkerPool.GetReqItem(rid)
-		if !ok {
-			continue
-		}
-		item.sendPeers.Add(sendTo)
+
+	rid := RequestID(evt.SendMessageDone.MessageID)
+	item, ok, _ := psc.reqWorkerPool.GetReqItem(rid)
+	if !ok {
+		psc.logger.Logf("info", "cannot find request item for id %s", rid)
+	}
+	for _, pid := range evt.SendMessageDone.PeerIDs {
+		item.sendPeers.Add(peer.ID(pid))
 	}
 }
