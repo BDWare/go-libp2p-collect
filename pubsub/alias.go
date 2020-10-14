@@ -1,8 +1,8 @@
 package pubsub
 
 import (
-	pubsub "github.com/libp2p/go-libp2p-pubsub"
-	pubsub_pb "github.com/libp2p/go-libp2p-pubsub/pb"
+	pubsub "github.com/bdware/go-libp2p-pubsub"
+	pubsub_pb "github.com/bdware/go-libp2p-pubsub/pb"
 )
 
 //Message is type alias.
