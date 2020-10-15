@@ -10,8 +10,8 @@ import (
 
 	"sync/atomic"
 
-	"bdware.org/libp2p/go-libp2p-collect/mock"
-	"bdware.org/libp2p/go-libp2p-collect/pb"
+	"github.com/bdware/go-libp2p-collect/mock"
+	"github.com/bdware/go-libp2p-collect/pb"
 	peer "github.com/libp2p/go-libp2p-core/peer"
 	"github.com/stretchr/testify/assert"
 )

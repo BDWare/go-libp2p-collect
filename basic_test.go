@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"bdware.org/libp2p/go-libp2p-collect/mock"
+	"github.com/bdware/go-libp2p-collect/mock"
 )
 
 func TestSelfPub(t *testing.T) {

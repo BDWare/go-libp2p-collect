@@ -6,7 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"bdware.org/libp2p/go-libp2p-collect/pubsub"
+	"github.com/bdware/go-libp2p-collect/pubsub"
 )
 
 // InitOpt is options used in NewBasicPubSubCollector

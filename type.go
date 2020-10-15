@@ -3,7 +3,7 @@ package collect
 import (
 	"io"
 
-	"bdware.org/libp2p/go-libp2p-collect/pb"
+	"github.com/bdware/go-libp2p-collect/pb"
 )
 
 // PubSubCollector is a group communication module on topic-based overlay network.

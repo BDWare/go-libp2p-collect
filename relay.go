@@ -7,8 +7,8 @@ import (
 	"math/rand"
 	"sync/atomic"
 
-	"bdware.org/libp2p/go-libp2p-collect/pb"
-	"bdware.org/libp2p/go-libp2p-collect/pubsub"
+	"github.com/bdware/go-libp2p-collect/pb"
+	"github.com/bdware/go-libp2p-collect/pubsub"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"

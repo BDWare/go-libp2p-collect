@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"bdware.org/libp2p/go-libp2p-collect/mock"
+	"github.com/bdware/go-libp2p-collect/mock"
 	"github.com/stretchr/testify/assert"
 )
 
