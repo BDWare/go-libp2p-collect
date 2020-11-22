@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sync"
 
-	host "github.com/libp2p/go-libp2p-core/host"
 	pubsub "github.com/bdware/go-libp2p-collect/pubsub"
+	host "github.com/libp2p/go-libp2p-core/host"
 )
 
 const (
