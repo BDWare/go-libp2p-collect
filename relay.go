@@ -498,7 +498,9 @@ func (t *tracer) Trace(evt *pubsub.TraceEvent) {
 	item, ok, _ := psc.reqWorkerPool.GetReqItem(rid)
 	if !ok {
 		psc.logger.Logf("info", "cannot find request item for id %s", rid)
+		return
 	}
+
 	for _, pid := range evt.SendMessageDone.PeerIDs {
 		item.sendPeers.Add(peer.ID(pid))
 	}

@@ -6,13 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/libp2p/go-libp2p-core/network"
-
 	"sync/atomic"
 
 	"github.com/bdware/go-libp2p-collect/mock"
 	"github.com/bdware/go-libp2p-collect/pb"
-	peer "github.com/libp2p/go-libp2p-core/peer"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -350,21 +347,29 @@ func TestRequestContextExpired(t *testing.T) {
 
 func TestFinalDeduplication(t *testing.T) {
 	// A -- B
-	// B returns 2 response to A, A drop the second one.
+	// |
+	// C
+	// B,C return the same response to A, A drop the second one.
 	mnet := mock.NewMockNet()
-	pubhost, err := mnet.NewLinkedPeer()
+	ahost, err := mnet.NewLinkedPeer()
 	assert.NoError(t, err)
-	subhost, err := mnet.NewLinkedPeer()
+	bhost, err := mnet.NewLinkedPeer()
+	assert.NoError(t, err)
+	chost, err := mnet.NewLinkedPeer()
 	assert.NoError(t, err)
 
 	// Even if hosts are connected,
 	// the topics may not find the pre-exist connections.
 	// We establish connections after topics are created.
-	pub, err := NewRelayPubSubCollector(pubhost)
+	a, err := NewRelayPubSubCollector(ahost)
 	assert.NoError(t, err)
-	sub, err := NewRelayPubSubCollector(subhost)
+	b, err := NewRelayPubSubCollector(bhost)
 	assert.NoError(t, err)
-	mnet.ConnectPeers(pubhost.ID(), subhost.ID())
+	c, err := NewRelayPubSubCollector(bhost)
+	assert.NoError(t, err)
+
+	mnet.ConnectPeers(ahost.ID(), bhost.ID())
+	mnet.ConnectPeers(ahost.ID(), chost.ID())
 
 	// time to connect
 	time.Sleep(50 * time.Millisecond)
@@ -372,46 +377,19 @@ func TestFinalDeduplication(t *testing.T) {
 	topic := "test-topic"
 	payload := []byte{1, 2, 3}
 
-	// when B handles the request, B sends two responses to A directly, not using Intermediate
-	handleSub := func(ctx context.Context, req *Request) *Intermediate {
-		assert.Equal(t, payload, req.Payload)
-		assert.Equal(t, pubhost.ID(), req.Control.Requester)
-		rqID := sub.ridFn(req)
-		resp := &Response{
-			Control: pb.ResponseControl{
-				RequestId: rqID,
-				Requester: req.Control.Requester,
-				Sender:    req.Control.Sender,
-			},
-			Payload: payload,
-		}
-		var (
-			s         network.Stream
-			respBytes []byte
-			from      peer.ID
-		)
-		respBytes, _ = resp.Marshal()
-		from = req.Control.Requester
-		s, err = sub.host.NewStream(context.Background(), from, sub.conf.responseProtocol)
-		assert.NoError(t, err)
-		_, err = s.Write(respBytes)
-		s.Close()
-
-		s, err = sub.host.NewStream(context.Background(), from, sub.conf.responseProtocol)
-		assert.NoError(t, err)
-		_, err = s.Write(respBytes)
-		s.Close()
-
+	handle := func(ctx context.Context, req *Request) *Intermediate {
 		out := &Intermediate{
-			Sendback: false,
+			Sendback: true,
 			Payload:  payload,
 		}
 		return out
 	}
 
-	err = pub.Join(topic)
+	err = a.Join(topic)
 	assert.NoError(t, err)
-	err = sub.Join(topic, WithRequestHandler(handleSub))
+	err = b.Join(topic, WithRequestHandler(handle))
+	assert.NoError(t, err)
+	err = c.Join(topic, WithRequestHandler(handle))
 	assert.NoError(t, err)
 
 	// time to join
@@ -423,10 +401,10 @@ func TestFinalDeduplication(t *testing.T) {
 		assert.Equal(t, payload, rp.Payload)
 		atomic.AddInt32(&count, 1)
 	}
-	err = pub.Publish(topic, payload, WithFinalRespHandler(finalHandler))
+	err = a.Publish(topic, payload, WithFinalRespHandler(finalHandler))
 	assert.NoError(t, err)
 
-	time.Sleep(2 * time.Second)
+	time.Sleep(100 * time.Millisecond)
 	assert.Equal(t, atomic.LoadInt32(&count), int32(1))
 }
 
@@ -438,12 +416,11 @@ func TestDeduplication(t *testing.T) {
 	// B should be able to intercept the response from C, because it knows
 	// it is a duplicated response by checking its response cache.
 	mnet := mock.NewMockNet()
-	hostA, err := mnet.GenPeerWithMarshalablePrivKey()
-	assert.NoError(t, err)
-
-	hostC, err := mnet.GenPeerWithMarshalablePrivKey()
+	hostA, err := mnet.NewLinkedPeer()
 	assert.NoError(t, err)
 	hostB, err := mnet.NewLinkedPeer()
+	assert.NoError(t, err)
+	hostC, err := mnet.NewLinkedPeer()
 	assert.NoError(t, err)
 
 	pscA, err := NewRelayPubSubCollector(hostA)
@@ -463,29 +440,9 @@ func TestDeduplication(t *testing.T) {
 	topic := "test-topic"
 	payload := []byte{1, 2, 3}
 
-	recvB := int32(0)
-	handlerForB := func(ctx context.Context, r *Request) *Intermediate {
+	handle := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, hostA.ID(), r.Control.Requester)
-		assert.Equal(t, hostA.ID(), peer.ID(r.Control.Sender))
-		atomic.StoreInt32(&recvB, 1)
-		out := &Intermediate{
-			Sendback: true,
-			Payload:  payload,
-		}
-		return out
-	}
-
-	recvC := int32(0)
-	handlerForC := func(ctx context.Context, r *Request) *Intermediate {
-		assert.Equal(t, payload, r.Payload)
-		assert.Equal(t, hostA.ID(), r.Control.Requester)
-		if hostA.ID() == peer.ID(r.Control.Sender) {
-			assert.FailNow(t, "C isn't expected to receive req from A")
-			return nil
-		}
-		assert.Equal(t, hostB.ID(), peer.ID(r.Control.Sender))
-		atomic.StoreInt32(&recvC, 1)
 		out := &Intermediate{
 			Sendback: true,
 			Payload:  payload,
@@ -495,9 +452,9 @@ func TestDeduplication(t *testing.T) {
 
 	err = pscA.Join(topic)
 	assert.NoError(t, err)
-	err = pscB.Join(topic, WithRequestHandler(handlerForB))
+	err = pscB.Join(topic, WithRequestHandler(handle))
 	assert.NoError(t, err)
-	err = pscC.Join(topic, WithRequestHandler(handlerForC))
+	err = pscC.Join(topic, WithRequestHandler(handle))
 	assert.NoError(t, err)
 
 	// time to join
@@ -512,10 +469,8 @@ func TestDeduplication(t *testing.T) {
 	err = pscA.Publish(topic, payload, WithFinalRespHandler(finalHandler))
 	assert.NoError(t, err)
 
-	time.Sleep(2 * time.Second)
+	time.Sleep(100 * time.Millisecond)
 	assert.Equal(t, atomic.LoadInt32(&count), int32(1))
-	assert.Equal(t, atomic.LoadInt32(&recvB), int32(1))
-	assert.Equal(t, atomic.LoadInt32(&recvC), int32(1))
 }
 
 func TestNoRequestIDForResponse(t *testing.T) {
@@ -527,9 +482,9 @@ func TestNoRequestIDForResponse(t *testing.T) {
 	// for example, we can forward this response to a random node.
 	// But now, we just drop it.
 	mnet := mock.NewMockNet()
-	hostA, err := mnet.GenPeerWithMarshalablePrivKey()
+	hostA, err := mnet.NewLinkedPeer()
 	assert.NoError(t, err)
-	hostC, err := mnet.GenPeerWithMarshalablePrivKey()
+	hostC, err := mnet.NewLinkedPeer()
 	assert.NoError(t, err)
 	hostB, err := mnet.NewLinkedPeer()
 	assert.NoError(t, err)
@@ -557,7 +512,7 @@ func TestNoRequestIDForResponse(t *testing.T) {
 	handlerForB := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, hostA.ID(), r.Control.Requester)
-		assert.Equal(t, hostA.ID(), peer.ID(r.Control.Sender), "B is expected to receive req from A")
+		assert.Equal(t, hostA.ID(), r.Control.Sender, "B is expected to receive req from A")
 		atomic.StoreInt32(&recvB, 1)
 		out := &Intermediate{
 			Sendback: true,
@@ -571,7 +526,7 @@ func TestNoRequestIDForResponse(t *testing.T) {
 	handlerForC := func(ctx context.Context, r *Request) *Intermediate {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, hostA.ID(), r.Control.Requester)
-		assert.Equal(t, hostB.ID(), peer.ID(r.Control.Sender), "C is expected to receive req from B")
+		assert.Equal(t, hostB.ID(), r.Control.Sender, "C is expected to receive req from B")
 		atomic.StoreInt32(&recvC, 1)
 		out := &Intermediate{
 			Sendback: true,
@@ -604,7 +559,7 @@ func TestNoRequestIDForResponse(t *testing.T) {
 	err = pscA.Publish(topic, payload, WithFinalRespHandler(finalHandler))
 	assert.NoError(t, err)
 
-	time.Sleep(2 * time.Second)
+	time.Sleep(100 * time.Millisecond)
 	assert.Equal(t, atomic.LoadInt32(&count), int32(1), "A should receive only 1 response")
 	assert.Equal(t, atomic.LoadInt32(&recvB), int32(1))
 	assert.Equal(t, atomic.LoadInt32(&recvC), int32(1))
