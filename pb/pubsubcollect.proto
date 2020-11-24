@@ -64,10 +64,6 @@ message ResponseControl {
     string responser = 3 [(gogoproto.casttype)="github.com/libp2p/go-libp2p-core/peer.ID"];
     // sender is the node who send you this response
     string sender = 4 [(gogoproto.casttype)="github.com/libp2p/go-libp2p-core/peer.ID"];
-
-    // no_more_incoming indicates whether there is any children node didn't send back response.
-    // For now it only takes effect in root node.
-    bool no_more_incoming = 5;
 }
 
 message Responses {

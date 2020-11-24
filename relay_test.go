@@ -2,14 +2,12 @@ package collect
 
 import (
 	"context"
-	"math/rand"
 	"testing"
 	"time"
 
 	"sync/atomic"
 
 	"github.com/bdware/go-libp2p-collect/mock"
-	"github.com/bdware/go-libp2p-collect/pb"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -563,63 +561,6 @@ func TestNoRequestIDForResponse(t *testing.T) {
 	assert.Equal(t, atomic.LoadInt32(&count), int32(1), "A should receive only 1 response")
 	assert.Equal(t, atomic.LoadInt32(&recvB), int32(1))
 	assert.Equal(t, atomic.LoadInt32(&recvC), int32(1))
-}
-
-func TestNoMoreIncoming(t *testing.T) {
-	// A -- B
-	// |
-	// C
-	mnet := mock.NewMockNet()
-
-	childrenCnt := 1
-	topic := "test-topic"
-	payload := []byte{1, 2, 3}
-	handleCnt := int32(0)
-	handler := func(ctx context.Context, req *Request) *Intermediate {
-		randPayload := make([]byte, 10)
-		rand.Read(randPayload)
-		atomic.AddInt32(&handleCnt, 1)
-		return &pb.Intermediate{
-			Sendback: true,
-			Payload:  randPayload,
-		}
-	}
-
-	hostA, err := mnet.NewLinkedPeer()
-	assert.NoError(t, err)
-	pscA, err := NewRelayPubSubCollector(hostA)
-	assert.NoError(t, err)
-	err = pscA.Join(topic, WithRequestHandler(handler))
-	assert.NoError(t, err)
-
-	for i := 0; i < childrenCnt; i++ {
-		childHost, err := mnet.NewLinkedPeer()
-		assert.NoError(t, err)
-		childPSC, err := NewRelayPubSubCollector(childHost)
-		assert.NoError(t, err)
-		time.Sleep(10 * time.Millisecond)
-		_, err = mnet.ConnectPeers(hostA.ID(), childHost.ID())
-		assert.NoError(t, err)
-		err = childPSC.Join(topic, WithRequestHandler(handler))
-		assert.NoError(t, err)
-	}
-
-	time.Sleep(100 * time.Millisecond)
-	falseCnt := int32(0)
-	trueCnt := int32(0)
-	final := func(ctx context.Context, resp *Response) {
-		if !resp.Control.NoMoreIncoming {
-			atomic.AddInt32(&falseCnt, 1)
-		} else {
-			atomic.AddInt32(&trueCnt, 1)
-		}
-	}
-	pscA.Publish(topic, payload, WithFinalRespHandler(final))
-	// time to wait for event handling
-	time.Sleep(100 * time.Millisecond)
-	assert.Equal(t, int32(1), atomic.LoadInt32(&trueCnt))
-	assert.Equal(t, int32(childrenCnt), atomic.LoadInt32(&falseCnt))
-	assert.Equal(t, int32(childrenCnt+1), atomic.LoadInt32(&handleCnt))
 }
 
 type testLogger testing.T

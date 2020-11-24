@@ -469,10 +469,6 @@ func (r *RelayPubSubCollector) handleFinalResponse(ctx context.Context, recv *Re
 		if recv.Control.Sender != r.host.ID() {
 			item.recvPeers.Add(recv.Control.Sender)
 		}
-		// Set no more incoming if all children has responded.
-		if item.sendPeers.Equal(item.recvPeers) {
-			recv.Control.NoMoreIncoming = true
-		}
 		item.finalHandler(ctx, recv)
 	}
 
