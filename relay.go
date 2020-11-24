@@ -174,8 +174,8 @@ func (r *RelayPubSubCollector) Publish(topic string, data []byte, opts ...PubOpt
 		r.reqWorkerPool.AddReqItem(options.RequestContext, rqID, &reqItem{
 			finalHandler: options.FinalRespHandle,
 			topic:        topic,
-			sendPeers:    newPeerSet(),
-			recvPeers:    newPeerSet(),
+			sendPeers:    NewPeerSet(),
+			recvPeers:    NewPeerSet(),
 		})
 
 		//  publish marshaled request
@@ -300,8 +300,8 @@ func (r *RelayPubSubCollector) topicHandle(topic string, msg *Message) {
 				finalHandler: func(context.Context, *Response) {},
 				topic:        topic,
 				msg:          msg,
-				sendPeers:    newPeerSet(),
-				recvPeers:    newPeerSet(),
+				sendPeers:    NewPeerSet(),
+				recvPeers:    NewPeerSet(),
 			}
 			r.reqWorkerPool.AddReqItem(ctx, rqID, item)
 		} else {
