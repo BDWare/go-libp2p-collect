@@ -30,8 +30,8 @@ func TestSelfPub(t *testing.T) {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, pubhost.ID(), r.Control.Requester)
 		out := &Intermediate{
-			Sendback: true,
-			Payload:  payload,
+			Hit:     true,
+			Payload: payload,
 		}
 		return out
 	}
@@ -86,8 +86,8 @@ func TestBasicSendRecv(t *testing.T) {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, pubhost.ID(), r.Control.Requester)
 		out := &Intermediate{
-			Sendback: false,
-			Payload:  payload,
+			Hit:     false,
+			Payload: payload,
 		}
 		return out
 	}
@@ -95,8 +95,8 @@ func TestBasicSendRecv(t *testing.T) {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, pubhost.ID(), r.Control.Requester)
 		out := &Intermediate{
-			Sendback: true,
-			Payload:  payload,
+			Hit:     true,
+			Payload: payload,
 		}
 		return out
 	}
@@ -277,8 +277,8 @@ func TestLeaveAndJoin(t *testing.T) {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, pubhost.ID(), r.Control.Requester)
 		out := &Intermediate{
-			Sendback: false,
-			Payload:  payload,
+			Hit:     false,
+			Payload: payload,
 		}
 		return out
 	}
@@ -286,8 +286,8 @@ func TestLeaveAndJoin(t *testing.T) {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, pubhost.ID(), r.Control.Requester)
 		out := &Intermediate{
-			Sendback: true,
-			Payload:  payload,
+			Hit:     true,
+			Payload: payload,
 		}
 		return out
 	}
@@ -364,8 +364,8 @@ func TestSelfNotif(t *testing.T) {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, h.ID(), r.Control.Requester)
 		out := &Intermediate{
-			Sendback: true,
-			Payload:  payload,
+			Hit:     true,
+			Payload: payload,
 		}
 		return out
 	}
@@ -407,8 +407,8 @@ func TestRejoin(t *testing.T) {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, h.ID(), r.Control.Requester)
 		out := &Intermediate{
-			Sendback: true,
-			Payload:  payload,
+			Hit:     true,
+			Payload: payload,
 		}
 		return out
 	}
@@ -416,8 +416,8 @@ func TestRejoin(t *testing.T) {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, h.ID(), r.Control.Requester)
 		out := &Intermediate{
-			Sendback: true,
-			Payload:  another,
+			Hit:     true,
+			Payload: another,
 		}
 		return out
 	}

@@ -30,8 +30,9 @@ message RequestControl {
 }
 
 message Intermediate {
-    // sendback decides whether send back to the root node
-    bool sendback = 1;
+    // hit decides whether send back to the root node
+    // if hit is true, means that the current node has the wanted answer.
+    bool hit = 1;
     // response payload, which will be assembled into a response
     // be aware that THIS IS NOT response.marshal() result
     bytes payload = 2;

@@ -282,7 +282,7 @@ func (bpsc *BasicPubSubCollector) topicHandle(topic string, msg *Message) {
 		// After request is processed, we will have a Intermediate.
 		// We send the response to the root node directly if sendback is set to true.
 		// Another protocol will be used to inform the root node.
-		if rqresult == nil || !rqresult.Sendback {
+		if rqresult == nil || !rqresult.Hit {
 			// drop any response if sendback is false or sendback == nil
 			bpsc.logger.message("info", "not sendback")
 

@@ -39,8 +39,8 @@ func TestRelaySendRecv(t *testing.T) {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, pubhost.ID(), r.Control.Requester)
 		out := &Intermediate{
-			Sendback: false,
-			Payload:  payload,
+			Hit:     false,
+			Payload: payload,
 		}
 		return out
 	}
@@ -48,8 +48,8 @@ func TestRelaySendRecv(t *testing.T) {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, pubhost.ID(), r.Control.Requester)
 		out := &Intermediate{
-			Sendback: true,
-			Payload:  payload,
+			Hit:     true,
+			Payload: payload,
 		}
 		return out
 	}
@@ -98,8 +98,8 @@ func TestRelaySelfPub(t *testing.T) {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, pubhost.ID(), r.Control.Requester)
 		out := &Intermediate{
-			Sendback: true,
-			Payload:  payload,
+			Hit:     true,
+			Payload: payload,
 		}
 		return out
 	}
@@ -144,8 +144,8 @@ func TestRelayRejoin(t *testing.T) {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, h.ID(), r.Control.Requester)
 		out := &Intermediate{
-			Sendback: true,
-			Payload:  payload,
+			Hit:     true,
+			Payload: payload,
 		}
 		return out
 	}
@@ -153,8 +153,8 @@ func TestRelayRejoin(t *testing.T) {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, h.ID(), r.Control.Requester)
 		out := &Intermediate{
-			Sendback: true,
-			Payload:  another,
+			Hit:     true,
+			Payload: another,
 		}
 		return out
 	}
@@ -210,8 +210,8 @@ func TestRelayLeaveAndJoin(t *testing.T) {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, pubhost.ID(), r.Control.Requester)
 		out := &Intermediate{
-			Sendback: false,
-			Payload:  payload,
+			Hit:     false,
+			Payload: payload,
 		}
 		return out
 	}
@@ -219,8 +219,8 @@ func TestRelayLeaveAndJoin(t *testing.T) {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, pubhost.ID(), r.Control.Requester)
 		out := &Intermediate{
-			Sendback: true,
-			Payload:  payload,
+			Hit:     true,
+			Payload: payload,
 		}
 		return out
 	}
@@ -302,8 +302,8 @@ func TestRequestContextExpired(t *testing.T) {
 	// but handleSub will send back the response
 	handlePub := func(ctx context.Context, r *Request) *Intermediate {
 		out := &Intermediate{
-			Sendback: false,
-			Payload:  payload,
+			Hit:     false,
+			Payload: payload,
 		}
 		return out
 	}
@@ -314,8 +314,8 @@ func TestRequestContextExpired(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 
 		out := &Intermediate{
-			Sendback: true,
-			Payload:  payload,
+			Hit:     true,
+			Payload: payload,
 		}
 		return out
 	}
@@ -377,8 +377,8 @@ func TestFinalDeduplication(t *testing.T) {
 
 	handle := func(ctx context.Context, req *Request) *Intermediate {
 		out := &Intermediate{
-			Sendback: true,
-			Payload:  payload,
+			Hit:     true,
+			Payload: payload,
 		}
 		return out
 	}
@@ -442,8 +442,8 @@ func TestDeduplication(t *testing.T) {
 		assert.Equal(t, payload, r.Payload)
 		assert.Equal(t, hostA.ID(), r.Control.Requester)
 		out := &Intermediate{
-			Sendback: true,
-			Payload:  payload,
+			Hit:     true,
+			Payload: payload,
 		}
 		return out
 	}
@@ -513,8 +513,8 @@ func TestNoRequestIDForResponse(t *testing.T) {
 		assert.Equal(t, hostA.ID(), r.Control.Sender, "B is expected to receive req from A")
 		atomic.StoreInt32(&recvB, 1)
 		out := &Intermediate{
-			Sendback: true,
-			Payload:  payloadB,
+			Hit:     true,
+			Payload: payloadB,
 		}
 		return out
 	}
@@ -527,8 +527,8 @@ func TestNoRequestIDForResponse(t *testing.T) {
 		assert.Equal(t, hostB.ID(), r.Control.Sender, "C is expected to receive req from B")
 		atomic.StoreInt32(&recvC, 1)
 		out := &Intermediate{
-			Sendback: true,
-			Payload:  payloadC,
+			Hit:     true,
+			Payload: payloadC,
 		}
 		// wait until A has received response from B, now it's safe to clear B's request cache
 		// B will not forward C's response to A

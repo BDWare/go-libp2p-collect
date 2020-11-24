@@ -168,8 +168,8 @@ func WithRequestHandler(rqhandle RequestHandler) JoinOpt {
 
 func defaultRequestHandler(context.Context, *Request) *Intermediate {
 	return &Intermediate{
-		Sendback: false,
-		Payload:  []byte{},
+		Hit:     false,
+		Payload: []byte{},
 	}
 }
 
@@ -187,8 +187,8 @@ func WithResponseHandler(handler ResponseHandler) JoinOpt {
 
 func defaultResponseHandler(context.Context, *Response) *Intermediate {
 	return &Intermediate{
-		Sendback: true,
-		Payload:  []byte{},
+		Hit:     true,
+		Payload: []byte{},
 	}
 }
 
