@@ -61,3 +61,13 @@ func (ps *PeerSet) String() string {
 	out += "]\n"
 	return out
 }
+
+func (ps *PeerSet) Slice() []peer.ID {
+	ps.rw.RLock()
+	defer ps.rw.RUnlock()
+	out := make([]peer.ID, 0, len(ps.peers))
+	for p := range ps.peers {
+		out = append(out, p)
+	}
+	return out
+}
