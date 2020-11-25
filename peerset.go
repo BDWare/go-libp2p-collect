@@ -54,15 +54,18 @@ func (ps *PeerSet) Equal(another *PeerSet) bool {
 func (ps *PeerSet) String() string {
 	ps.rw.RLock()
 	defer ps.rw.RUnlock()
-	out := "[\n"
+	out := "["
 	for p := range ps.peers {
-		out += p.ShortString() + ",\n"
+		out += p.ShortString() + ","
 	}
-	out += "]\n"
+	out += "]"
 	return out
 }
 
 func (ps *PeerSet) Slice() []peer.ID {
+	if ps == nil {
+		return []peer.ID{}
+	}
 	ps.rw.RLock()
 	defer ps.rw.RUnlock()
 	out := make([]peer.ID, 0, len(ps.peers))

@@ -57,6 +57,24 @@ func (mn *Net) GenPeerWithMarshalablePrivKey() (host.Host, error) {
 	return h, nil
 }
 
+// MustNewLinkedPeer returns a full-mesh-linked host
+func (mn *Net) MustNewLinkedPeer() host.Host {
+	h, err := mn.NewLinkedPeer()
+	if err != nil {
+		panic(err)
+	}
+	return h
+}
+
+// MustNewConnectedPeer returns a full-mesh-connected host
+func (mn *Net) MustNewConnectedPeer() host.Host {
+	h, err := mn.NewConnectedPeer()
+	if err != nil {
+		panic(err)
+	}
+	return h
+}
+
 // NewLinkedPeer returns a full-mesh-linked host
 func (mn *Net) NewLinkedPeer() (host.Host, error) {
 	h, err := mn.GenPeerWithMarshalablePrivKey()
