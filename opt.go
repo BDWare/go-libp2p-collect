@@ -136,15 +136,16 @@ type JoinOpt func(*JoinOpts) error
 // JoinOpts is the aggregated options
 type JoinOpts struct {
 	RequestHandler
-	ResponseHandler
+	ProfileFactory
 }
 
 // NewJoinOptions returns an option collection
 func NewJoinOptions(opts []JoinOpt) (out *JoinOpts, err error) {
 	out = &JoinOpts{
-		RequestHandler:  defaultRequestHandler,
-		ResponseHandler: defaultResponseHandler,
+		RequestHandler: defaultRequestHandler,
+		ProfileFactory: nil,
 	}
+
 	for _, opt := range opts {
 		if err == nil {
 			err = opt(out)
@@ -173,22 +174,10 @@ func defaultRequestHandler(context.Context, *Request) *Intermediate {
 	}
 }
 
-// ResponseHandler is the callback when a node receive a response.
-// the sendback in Intermediate will decide whether the response will be sent back to the root.
-type ResponseHandler func(context.Context, *Response) *Intermediate
-
-// WithResponseHandler registers response handler
-func WithResponseHandler(handler ResponseHandler) JoinOpt {
-	return func(opts *JoinOpts) error {
-		opts.ResponseHandler = handler
+func WithProfileFactory(pf ProfileFactory) JoinOpt {
+	return func(jo *JoinOpts) error {
+		jo.ProfileFactory = pf
 		return nil
-	}
-}
-
-func defaultResponseHandler(context.Context, *Response) *Intermediate {
-	return &Intermediate{
-		Hit:     true,
-		Payload: []byte{},
 	}
 }
 

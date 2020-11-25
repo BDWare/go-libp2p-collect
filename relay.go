@@ -126,11 +126,6 @@ func (r *RelayPubSubCollector) Join(topic string, options ...JoinOpt) (err error
 		err = r.apubsub.SetTopicItem(topic, requestHandlerKey, opts.RequestHandler)
 	}
 
-	// register request handler
-	if err == nil {
-		err = r.apubsub.SetTopicItem(topic, responseHandlerKey, opts.ResponseHandler)
-	}
-
 	if err != nil {
 		r.logger.error(err)
 	}
