@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package pb;
+
+option go_package="github.com/bdware/go-libp2p-collect/pb";
+
+message Message {
+    enum MsgType {
+        UNKNOWN = 0;
+        JOIN = 1;
+        LEAVE = 2;
+    };
+    MsgType msgType = 1;
+    repeated string topics = 2;
+}
