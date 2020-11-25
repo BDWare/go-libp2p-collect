@@ -122,11 +122,8 @@ func TestBasicJoinAndLeaveNotif(t *testing.T) {
 		upAssert:   assert2,
 		downAssert: assert2,
 	}
-	var err error
-	err = tbo1.SetNotifiee(notif1)
-	assert.NoError(t, err)
-	err = tbo2.SetNotifiee(notif2)
-	assert.NoError(t, err)
+	tbo1.SetNotifiee(notif1)
+	tbo2.SetNotifiee(notif2)
 
 	mustJoin(tbo1, topic)
 	mustJoin(tbo2, topic)
@@ -163,11 +160,8 @@ func TestConnectAfterJoinNotif(t *testing.T) {
 		upAssert:   assert2,
 		downAssert: assert2,
 	}
-	var err error
-	err = tbo1.SetNotifiee(notif1)
-	assert.NoError(t, err)
-	err = tbo2.SetNotifiee(notif2)
-	assert.NoError(t, err)
+	tbo1.SetNotifiee(notif1)
+	tbo2.SetNotifiee(notif2)
 
 	mustJoin(tbo1, topic)
 	mustJoin(tbo2, topic)

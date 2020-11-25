@@ -112,11 +112,10 @@ func (t *TopicBasedOverlay) Topics() []string {
 	return t.joinedTopics()
 }
 
-func (t *TopicBasedOverlay) SetNotifiee(notifiee Notifiee) error {
+func (t *TopicBasedOverlay) SetNotifiee(notifiee Notifiee) {
 	t.rw.Lock()
 	defer t.rw.Unlock()
 	t.notif = notifiee
-	return nil
 }
 
 func (t *TopicBasedOverlay) Close() error {
