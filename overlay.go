@@ -56,6 +56,11 @@ func (t *TopicBasedOverlay) Join(topic string) error {
 		}
 	}
 
+	// notify
+	for _, peerid := range t.topics[topic].Slice() {
+		go t.notif.HandleNeighUp(peerid, topic)
+	}
+
 	return nil
 }
 
@@ -76,10 +81,12 @@ func (t *TopicBasedOverlay) Leave(topic string) error {
 				// TODO: log
 			}
 		}(p)
+		go t.notif.HandleNeighDown(p, topic)
 	}
 	// delete topic
 	delete(t.joined, topic)
 	delete(t.topics, topic)
+
 	return nil
 }
 
@@ -191,7 +198,7 @@ func (t *TopicBasedOverlay) handlePeerDown(p peer.ID) {
 	defer t.rw.Unlock()
 	for topic, ps := range t.topics {
 		ps.Del(p)
-		go t.notif.handleNeighDown(p, topic)
+		go t.notif.HandleNeighDown(p, topic)
 	}
 }
 
@@ -210,7 +217,7 @@ func (t *TopicBasedOverlay) handlePeerJoin(p peer.ID, topics []string) {
 			// add p in topics, but don't bother notifiee
 			continue
 		}
-		go t.notif.handleNeighUp(p, topic)
+		go t.notif.HandleNeighUp(p, topic)
 	}
 }
 
@@ -224,21 +231,21 @@ func (t *TopicBasedOverlay) handlePeerLeave(p peer.ID, topics []string) {
 			continue
 		}
 		ps.Del(p)
-		go t.notif.handleNeighDown(p, topic)
+		go t.notif.HandleNeighDown(p, topic)
 	}
 }
 
 /*===========================================================================*/
 
 type Notifiee interface {
-	handleNeighUp(neigh peer.ID, topic string)
-	handleNeighDown(neigh peer.ID, topic string)
+	HandleNeighUp(neigh peer.ID, topic string)
+	HandleNeighDown(neigh peer.ID, topic string)
 }
 
 type defaultNotif struct{}
 
-func (d defaultNotif) handleNeighUp(neigh peer.ID, topic string)   {}
-func (d defaultNotif) handleNeighDown(neigh peer.ID, topic string) {}
+func (d defaultNotif) HandleNeighUp(neigh peer.ID, topic string)   {}
+func (d defaultNotif) HandleNeighDown(neigh peer.ID, topic string) {}
 
 /*===========================================================================*/
 // TopicBasedOverlay as network notifiee
