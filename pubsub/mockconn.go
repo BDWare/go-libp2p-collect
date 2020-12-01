@@ -13,6 +13,12 @@ type MockConn struct {
 	Remote peer.ID
 }
 
+// ID returns an identifier that uniquely identifies this Conn within this
+// host, during this run. Connection IDs may repeat across restarts.
+func (mc *MockConn) ID() string {
+	panic("not implemented")
+}
+
 // NewStream constructs a new Stream over this conn.
 func (mc *MockConn) NewStream() (network.Stream, error) {
 	panic("not implemented")
