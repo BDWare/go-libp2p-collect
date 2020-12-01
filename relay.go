@@ -79,11 +79,6 @@ func NewRelayPubSubCollector(h host.Host, options ...InitOpt) (r *RelayPubSubCol
 						pubsub.WithEventTracer((*tracer)(r)),
 						pubsub.WithMessageIDFn(opts.MsgIDFn),
 					)
-					// replay the peers connected to pubsub via Notif
-					notif := (*pubsub.Notif)(psub)
-					for _, pid := range h.Peerstore().PeersWithAddrs() {
-						notif.Connected(nil, &pubsub.MockConn{Remote: pid})
-					}
 					return psub, err
 				},
 			),

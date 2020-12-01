@@ -26,6 +26,8 @@ github.com/bdware/go-libp2p-pubsub v0.3.2-0.20201015065746-27c1c4bda2fd h1:/bQ/U
 github.com/bdware/go-libp2p-pubsub v0.3.2-0.20201015065746-27c1c4bda2fd/go.mod h1:CGcyxkSzyrnx3eNMYgVfhmyGU/v4wzo13ktVihWorBI=
 github.com/bdware/go-libp2p-pubsub v0.4.0-bdw.1 h1:rX4wMKgirccFsViSmRlIL4PEqd6s6RFb4MF0/Pmzn1Q=
 github.com/bdware/go-libp2p-pubsub v0.4.0-bdw.1/go.mod h1:WQOj214NHsGpQh7SMvy0avtzz38CXNQsJ0+9z8baZeE=
+github.com/bdware/go-libp2p-pubsub v0.4.0-bdw.1.0.20201201031221-986873b088f5 h1:k8wWo9OY/N56NswB3J0Yl4RF/N+4sF+QQR99806eiJM=
+github.com/bdware/go-libp2p-pubsub v0.4.0-bdw.1.0.20201201031221-986873b088f5/go.mod h1:WQOj214NHsGpQh7SMvy0avtzz38CXNQsJ0+9z8baZeE=
 github.com/benbjohnson/clock v1.0.1 h1:lVM1R/o5khtrr7t3qAr+sS6uagZOP+7iprc7gS3V9CE=
 github.com/benbjohnson/clock v1.0.1/go.mod h1:bGMdMPoPVvcYyt1gHDf4J2KE153Yf9BuiUKYMaxlTDM=
 github.com/benbjohnson/clock v1.0.2/go.mod h1:bGMdMPoPVvcYyt1gHDf4J2KE153Yf9BuiUKYMaxlTDM=

@@ -3,7 +3,7 @@ module github.com/bdware/go-libp2p-collect
 go 1.14
 
 require (
-	github.com/bdware/go-libp2p-pubsub v0.4.0-bdw.1
+	github.com/bdware/go-libp2p-pubsub v0.4.0-bdw.1.0.20201201031221-986873b088f5
 	github.com/davidlazar/go-crypto v0.0.0-20190912175916-7055855a373f // indirect
 	github.com/gogo/protobuf v1.3.1
 	github.com/hashicorp/golang-lru v0.5.4
