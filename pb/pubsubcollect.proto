@@ -27,6 +27,8 @@ message RequestControl {
     uint64 seqno = 3;
 
     uint32 hops = 4;
+
+    string topic = 5;
 }
 
 message Intermediate {
@@ -65,8 +67,21 @@ message ResponseControl {
     string responser = 3 [(gogoproto.casttype)="github.com/libp2p/go-libp2p-core/peer.ID"];
     // sender is the node who send you this response
     string sender = 4 [(gogoproto.casttype)="github.com/libp2p/go-libp2p-core/peer.ID"];
+
+    string topic = 5;
 }
 
 message Responses {
     repeated Responses responses = 1;
+}
+
+message Msg {
+    enum MsgType {
+        Unknown = 0;
+        Request = 1;
+        Response = 2;
+    }
+    MsgType type = 1;
+    Request request = 2;
+    Response response = 3;
 }

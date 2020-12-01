@@ -18,6 +18,7 @@ type InitOpts struct {
 	ReqIDFn ReqIDFn
 	MsgIDFn pubsub.MsgIDFn
 	Logger  Logger
+	Wires   TopicWires
 }
 
 // NewInitOpts returns initopts

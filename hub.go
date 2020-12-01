@@ -119,6 +119,10 @@ type outbound struct {
 	handler  MsgHandler
 }
 
+func (o *outbound) ID() peer.ID {
+	return o.hub.tw.ID()
+}
+
 func (o *outbound) Neighbors() []peer.ID {
 	return o.hub.tw.Neighbors(o.topic)
 }

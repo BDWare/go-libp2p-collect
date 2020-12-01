@@ -38,6 +38,7 @@ type Intermediate = pb.Intermediate
 type RequestID = pb.RequestID
 
 type TopicWires interface {
+	ID() peer.ID
 	Join(topic string) error
 	Leave(topic string) error
 	Topics() []string
@@ -54,6 +55,7 @@ type TopicWireListener interface {
 }
 
 type Wires interface {
+	ID() peer.ID
 	Neighbors() []peer.ID
 	SetListener(wn WireListener)
 	SendMsg(to peer.ID, data []byte) error
