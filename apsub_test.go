@@ -190,3 +190,43 @@ func TestGetAndSetItem(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expect, actual)
 }
+
+func TestUnsubscribe(t *testing.T) {
+	mnet := mock.NewMockNet()
+	pubhost, err := mnet.NewLinkedPeer()
+	assert.NoError(t, err)
+	subhost, err := mnet.NewLinkedPeer()
+	assert.NoError(t, err)
+
+	// Even if hosts are connected,
+	// the topics may not find the pre-exist connections.
+	// We establish connections after topics are created.
+	pub, err := NewAsyncPubSub(pubhost)
+	assert.NoError(t, err)
+	sub, err := NewAsyncPubSub(subhost)
+	assert.NoError(t, err)
+	mnet.ConnectPeers(pubhost.ID(), subhost.ID())
+
+	// wait for discovery
+	time.Sleep(50 * time.Millisecond)
+
+	expecttopic := "test-topic"
+	expectdata := []byte{1, 2, 3}
+	failhandle := func(topic string, msg *Message) {
+		assert.FailNow(t, "unexpected call of handle")
+	}
+	err = sub.Subscribe(expecttopic, failhandle)
+	assert.NoError(t, err)
+	// wait for subscription
+	time.Sleep(10 * time.Millisecond)
+	// Leave
+	err = sub.Unsubscribe(expecttopic)
+	assert.NoError(t, err)
+	// wait for subscription
+	time.Sleep(10 * time.Millisecond)
+	err = pub.Publish(context.TODO(), expecttopic, expectdata)
+	assert.NoError(t, err)
+	select {
+	case <-time.After(300 * time.Millisecond):
+	}
+}

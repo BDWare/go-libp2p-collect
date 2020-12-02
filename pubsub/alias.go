@@ -32,6 +32,7 @@ type MsgIDFn = pubsub.MsgIdFunction
 // function aliases
 var (
 	NewRandomSub        = pubsub.NewRandomSub
+	NewGossipSub        = pubsub.NewGossipSub
 	WithCustomProtocols = pubsub.WithCustomProtocols
 	WithEventTracer     = pubsub.WithEventTracer
 	WithMessageIDFn     = pubsub.WithMessageIdFn

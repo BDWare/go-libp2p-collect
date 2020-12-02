@@ -12,7 +12,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
-	protocol "github.com/libp2p/go-libp2p-core/protocol"
+	"github.com/libp2p/go-libp2p-core/protocol"
 )
 
 type deduplicator interface {
@@ -71,10 +71,17 @@ func NewRelayPubSubCollector(h host.Host, options ...InitOpt) (r *RelayPubSubCol
 			WithSelfNotif(true),
 			WithCustomPubSubFactory(
 				func(h host.Host) (*pubsub.PubSub, error) {
-					psub, err := pubsub.NewRandomSub(
+					// psub, err := pubsub.NewRandomSub(
+					// 	context.Background(),
+					// 	h,
+					// 	defaultRandomSubSize,
+					// 	pubsub.WithCustomProtocols([]protocol.ID{conf.requestProtocol}),
+					// 	pubsub.WithEventTracer((*tracer)(r)),
+					// 	pubsub.WithMessageIDFn(opts.MsgIDFn),
+					// )
+					psub, err := pubsub.NewGossipSub(
 						context.Background(),
 						h,
-						defaultRandomSubSize,
 						pubsub.WithCustomProtocols([]protocol.ID{conf.requestProtocol}),
 						pubsub.WithEventTracer((*tracer)(r)),
 						pubsub.WithMessageIDFn(opts.MsgIDFn),
@@ -101,7 +108,8 @@ func (r *RelayPubSubCollector) Join(topic string, options ...JoinOpt) (err error
 
 	r.logger.funcCall("debug", "Join",
 		map[string]interface{}{
-			"topic": topic,
+			"topic":  topic,
+			"myself": r.host.ID().ShortString(),
 		})
 
 	var opts *JoinOpts
@@ -134,7 +142,8 @@ func (r *RelayPubSubCollector) Join(topic string, options ...JoinOpt) (err error
 func (r *RelayPubSubCollector) Publish(topic string, data []byte, opts ...PubOpt) (err error) {
 
 	r.logger.funcCall("debug", "publish", map[string]interface{}{
-		"topic": topic,
+		"topic":  topic,
+		"myself": r.host.ID().ShortString(),
 	})
 
 	var (
@@ -189,7 +198,8 @@ func (r *RelayPubSubCollector) Publish(topic string, data []byte, opts ...PubOpt
 func (r *RelayPubSubCollector) Leave(topic string) (err error) {
 
 	r.logger.funcCall("debug", "leave", map[string]interface{}{
-		"topic": topic,
+		"topic":  topic,
+		"myself": r.host.ID().ShortString(),
 	})
 
 	err = r.apubsub.Unsubscribe(topic)
@@ -220,7 +230,8 @@ func (r *RelayPubSubCollector) Close() (err error) {
 func (r *RelayPubSubCollector) topicHandle(topic string, msg *Message) {
 
 	r.logger.funcCall("debug", "topicHandle", map[string]interface{}{
-		"topic": topic,
+		"topic":  topic,
+		"myself": r.host.ID().ShortString(),
 		"receive-from": func() string {
 			if msg == nil {
 				return ""
@@ -235,7 +246,7 @@ func (r *RelayPubSubCollector) topicHandle(topic string, msg *Message) {
 			if err != nil {
 				return ""
 			}
-			return pid.Pretty()
+			return pid.ShortString()
 		}(),
 	})
 
