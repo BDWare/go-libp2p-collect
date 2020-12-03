@@ -145,13 +145,14 @@ func (r *RelayPubSubCollector) Publish(topic string, data []byte, opts ...PubOpt
 		rqID    RequestID
 		options *PubOpts
 		tosend  []byte
+		req     *Request
 	)
 	{
 		options, err = NewPublishOptions(opts)
 	}
 	if err == nil {
 		myself := r.host.ID()
-		req := &Request{
+		req = &Request{
 			Control: pb.RequestControl{
 				Requester: myself,
 				Sender:    myself,
@@ -173,6 +174,7 @@ func (r *RelayPubSubCollector) Publish(topic string, data []byte, opts ...PubOpt
 		r.reqWorkerPool.AddReqItem(options.RequestContext, rqID, &reqItem{
 			finalHandler: options.FinalRespHandle,
 			topic:        topic,
+			req:          req,
 		})
 
 		//  publish marshaled request
@@ -298,11 +300,11 @@ func (r *RelayPubSubCollector) topicHandle(topic string, msg *Message) {
 			item = &reqItem{
 				finalHandler: func(context.Context, *Response) {},
 				topic:        topic,
-				msg:          msg,
+				req:          req,
 			}
 			r.reqWorkerPool.AddReqItem(ctx, rqID, item)
 		} else {
-			item.msg = msg
+			item.req = req
 		}
 
 		// handle request
@@ -415,10 +417,11 @@ func (r *RelayPubSubCollector) handleAndForwardResponse(ctx context.Context, rec
 	if err == nil && r.dedup.markSeen(recv) {
 		// send back the first seen response
 		{
+			recv.Control.Sender = r.host.ID()
 			respBytes, err = recv.Marshal()
 		}
 		if err == nil {
-			from = peer.ID(item.msg.ReceivedFrom)
+			from = peer.ID(item.req.Control.Sender)
 
 			s, err = r.host.NewStream(context.Background(), from, r.conf.responseProtocol)
 		}

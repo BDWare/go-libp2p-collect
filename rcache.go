@@ -18,7 +18,7 @@ type requestWorkerPool struct {
 type reqItem struct {
 	finalHandler FinalRespHandler
 	topic        string
-	msg          *Message
+	req          *Request
 }
 
 type reqWorker struct {
@@ -34,32 +34,22 @@ func newReqWorker(ctx context.Context, item *reqItem, onClose func()) *reqWorker
 		cc:      cc,
 		onClose: onClose,
 	}
-	go r.loop(cctx)
-	return r
-}
-
-func (rw *reqWorker) loop(ctx context.Context) {
-	for {
+	go func(ctx context.Context, r *reqWorker) {
 		select {
 		case <-ctx.Done():
-			if rw.onClose != nil {
-				rw.onClose()
+			if r.onClose != nil {
+				r.onClose()
 			}
 			return
 		}
-	}
-}
-
-func (rw *reqWorker) close() {
-	rw.cc()
+	}(cctx, r)
+	return r
 }
 
 // callback when a request is evicted.
 func onReqCacheEvict(key interface{}, value interface{}) {
 	// cancel context
-	w := value.(*reqWorker)
-	w.close()
-	// TODO: add logging
+	value.(*reqWorker).cc()
 }
 
 // newRequestWorkerPool .

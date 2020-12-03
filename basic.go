@@ -253,7 +253,7 @@ func (bpsc *BasicPubSubCollector) topicHandle(topic string, msg *Message) {
 		// not self-publish, add a reqItem
 		if msg.ReceivedFrom != bpsc.host.ID() {
 			bpsc.reqWorkerPool.AddReqItem(context.Background(), rqID, &reqItem{
-				msg:   msg,
+				req:   req,
 				topic: topic,
 			})
 			// clean up later
