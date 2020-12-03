@@ -19,8 +19,6 @@ type reqItem struct {
 	finalHandler FinalRespHandler
 	topic        string
 	msg          *Message
-	sendPeers    *PeerSet
-	recvPeers    *PeerSet
 }
 
 type reqWorker struct {

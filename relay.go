@@ -173,8 +173,6 @@ func (r *RelayPubSubCollector) Publish(topic string, data []byte, opts ...PubOpt
 		r.reqWorkerPool.AddReqItem(options.RequestContext, rqID, &reqItem{
 			finalHandler: options.FinalRespHandle,
 			topic:        topic,
-			sendPeers:    NewPeerSet(),
-			recvPeers:    NewPeerSet(),
 		})
 
 		//  publish marshaled request
@@ -301,8 +299,6 @@ func (r *RelayPubSubCollector) topicHandle(topic string, msg *Message) {
 				finalHandler: func(context.Context, *Response) {},
 				topic:        topic,
 				msg:          msg,
-				sendPeers:    NewPeerSet(),
-				recvPeers:    NewPeerSet(),
 			}
 			r.reqWorkerPool.AddReqItem(ctx, rqID, item)
 		} else {
@@ -466,10 +462,6 @@ func (r *RelayPubSubCollector) handleFinalResponse(ctx context.Context, recv *Re
 		err = fmt.Errorf("cannot find reqItem for response ID: %s", reqID)
 	}
 	if err == nil && r.dedup.markSeen(recv) {
-		// add any peerID if sender is not myself
-		if recv.Control.Sender != r.host.ID() {
-			item.recvPeers.Add(recv.Control.Sender)
-		}
 		item.finalHandler(ctx, recv)
 	}
 
@@ -483,22 +475,4 @@ func (r *RelayPubSubCollector) handleFinalResponse(ctx context.Context, recv *Re
 type tracer RelayPubSubCollector
 
 func (t *tracer) Trace(evt *pubsub.TraceEvent) {
-	if evt.SendMessageDone == nil {
-		return
-	}
-
-	psc := (*RelayPubSubCollector)(t)
-
-	psc.logger.funcCall("debug", "trace", nil)
-
-	rid := RequestID(evt.SendMessageDone.MessageID)
-	item, ok, _ := psc.reqWorkerPool.GetReqItem(rid)
-	if !ok {
-		psc.logger.Logf("info", "cannot find request item for id %s", rid)
-		return
-	}
-
-	for _, pid := range evt.SendMessageDone.PeerIDs {
-		item.sendPeers.Add(peer.ID(pid))
-	}
 }
