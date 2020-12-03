@@ -120,3 +120,11 @@ func (mn *Net) ConnectAllButSelf(h host.Host) error {
 	}
 	return nil
 }
+
+// MustConnect connects peer.
+func (mn *Net) MustConnect(a, b peer.ID) {
+	_, err := mn.ConnectPeers(a, b)
+	if err != nil {
+		panic(err)
+	}
+}

@@ -2,9 +2,11 @@ package collect
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"sort"
 	"sync"
+	"sync/atomic"
 
 	"github.com/bdware/go-libp2p-collect/pb"
 	"github.com/libp2p/go-libp2p-core/host"
@@ -125,45 +127,50 @@ const (
 )
 
 type IntBFS struct {
-	rw          sync.RWMutex
-	wires       Wires
-	profFactory ProfileFactory
-	reqHandler  RequestHandler
-	profiles    map[peer.ID]Profile
-	log         Logger
-	seqno       uint64
-	pool        requestWorkerPool
+	rw       sync.RWMutex
+	wires    Wires
+	opts     *IntBFSOptions
+	profiles map[peer.ID]Profile
+	log      Logger
+	seqno    uint64
+	pool     *requestWorkerPool
 }
 
 func NewIntBFS(wires Wires, opts *IntBFSOptions) (*IntBFS, error) {
-
+	if err := checkIntBFSOpitons(opts); err != nil {
+		return nil, err
+	}
 	out := &IntBFS{
-		rw:          sync.RWMutex{},
-		wires:       wires,
-		profFactory: nil,
-		profiles:    make(map[peer.ID]Profile),
-		seqno:       rand.Uint64(),
+		rw:       sync.RWMutex{},
+		wires:    wires,
+		opts:     opts,
+		profiles: make(map[peer.ID]Profile),
+		seqno:    rand.Uint64(),
 	}
 	return out, nil
 }
 
 func (ib *IntBFS) Publish(data []byte, opts ...PubOpt) error {
-	// po, err := NewPublishOptions(opts)
-	// if err != nil {
-	// 	return err
-	// }
-	// // assemble the request
-	// myself := ib.wires.ID()
-	// req := &Request{
-	// 	Control: pb.RequestControl{
-	// 		Requester: myself,
-	// 		Sender:    myself,
-	// 		Seqno:     atomic.AddUint64(&(ib.seqno), 1),
-	// 	},
-	// 	Payload: data,
-	// }
+	po, err := NewPublishOptions(opts)
+	if err != nil {
+		return err
+	}
+	// assemble the request
+	myself := ib.wires.ID()
+	req := &Request{
+		Control: pb.RequestControl{
+			Requester: myself,
+			Sender:    myself,
+			Seqno:     atomic.AddUint64(&(ib.seqno), 1),
+		},
+		Payload: data,
+	}
+	reqID := ib.opts.ReqIDFn(req)
 
 	// set finalHandler
+	ib.pool.AddReqItem(po.RequestContext, reqID, &reqItem{
+		finalHandler: po.FinalRespHandle,
+	})
 
 	// handle
 
@@ -213,17 +220,12 @@ func (ib *IntBFS) HandlePeerUp(p peer.ID) {
 		ib.log.Logf("warn", "HandlePeerUp: %s profile exists", p.ShortString())
 		return
 	}
-	prof, err := ib.profFactory()
-	if err != nil {
-		ib.log.Logf("error", "HandlePeerUp: init profile error:%v", err)
-		return
-	}
-	ib.profiles[p] = prof
+	ib.profiles[p] = ib.opts.ProfileFactory()
 }
 
 func (ib *IntBFS) handleIncomingRequest(from peer.ID, req *Request) error {
 	// call request handler
-	m := ib.reqHandler(context.TODO(), req)
+	m := ib.opts.RequestHandler(context.TODO(), req)
 
 	// check hit
 	if m.Hit {
@@ -334,14 +336,57 @@ func (ib *IntBFS) ranks(reqPayload []byte) []peer.ID {
 /*===========================================================================*/
 
 // ProfileFactory generates a Profile
-type ProfileFactory func() (Profile, error)
+type ProfileFactory func() Profile
 
 // Profile stores query profiles
 type Profile interface {
-	Insert(from peer.ID, reqPayload []byte) error
+	Insert(from peer.ID, reqPayload []byte)
 	//
 	Less(that Profile, reqPayload []byte) bool
 }
 
+type defaultProfile struct{}
+
+func (d *defaultProfile) Insert(from peer.ID, req []byte) {
+
+}
+func (d *defaultProfile) Less(that Profile, req []byte) bool {
+	return true
+}
+
+/*===========================================================================*/
+// options
+/*===========================================================================*/
+
+// IntBFSOptions .
 type IntBFSOptions struct {
+	ProfileFactory
+	RequestHandler
+	ReqIDFn
+}
+
+var defaultProfileFactory = func() Profile { return &defaultProfile{} }
+
+// DefaultIntBFSOptions .
+func DefaultIntBFSOptions() *IntBFSOptions {
+	return &IntBFSOptions{
+		ProfileFactory: defaultProfileFactory,
+		RequestHandler: defaultRequestHandler,
+	}
+}
+
+func checkIntBFSOpitons(opts *IntBFSOptions) error {
+	if opts == nil {
+		opts = DefaultIntBFSOptions()
+	}
+	if opts.ProfileFactory == nil {
+		return fmt.Errorf("nil profile factory")
+	}
+	if opts.RequestHandler == nil {
+		return fmt.Errorf("nil request handler")
+	}
+	if opts.ReqIDFn == nil {
+		return fmt.Errorf("nil ReqIDFn")
+	}
+	return nil
 }
