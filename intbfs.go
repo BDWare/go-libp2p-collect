@@ -65,14 +65,14 @@ func (ic *IntBFSCollector) Join(topic string, opts ...JoinOpt) (err error) {
 
 	intbfs, err := NewIntBFS(
 		wires,
-		nil, // TODO
+		MakeDefaultIntBFSOptions(),
 	)
 	if err != nil {
 		return err
 	}
 
 	wires.SetListener(intbfs)
-	wires.SetMsgHandler(intbfs.HandleMsg)
+	wires.SetMsgHandler(intbfs.handleMsg)
 
 	ic.topics[topic] = intbfs
 
@@ -129,9 +129,12 @@ const (
 type IntBFS struct {
 	rw       sync.RWMutex
 	wires    Wires
-	opts     *IntBFSOptions
 	profiles map[peer.ID]Profile
 	log      Logger
+	topic    string
+	profact  ProfileFactory
+	reqidfn  ReqIDFn
+	reqhndl  RequestHandler
 	seqno    uint64
 	pool     *requestWorkerPool
 }
@@ -140,13 +143,24 @@ func NewIntBFS(wires Wires, opts *IntBFSOptions) (*IntBFS, error) {
 	if err := checkIntBFSOpitons(opts); err != nil {
 		return nil, err
 	}
+	pool, err := newRequestWorkerPool(1024)
+	if err != nil {
+		return nil, err
+	}
 	out := &IntBFS{
 		rw:       sync.RWMutex{},
 		wires:    wires,
-		opts:     opts,
 		profiles: make(map[peer.ID]Profile),
+		log:      opts.Logger,
+		topic:    opts.Topic,
+		profact:  opts.ProfileFactory,
+		reqidfn:  opts.ReqIDFn,
+		reqhndl:  opts.RequestHandler,
 		seqno:    rand.Uint64(),
+		pool:     pool,
 	}
+	wires.SetListener(out)
+	wires.SetMsgHandler(out.handleMsg)
 	return out, nil
 }
 
@@ -162,33 +176,47 @@ func (ib *IntBFS) Publish(data []byte, opts ...PubOpt) error {
 			Requester: myself,
 			Sender:    myself,
 			Seqno:     atomic.AddUint64(&(ib.seqno), 1),
+			Topic:     ib.topic,
 		},
 		Payload: data,
 	}
-	reqID := ib.opts.ReqIDFn(req)
-
+	reqID := ib.reqidfn(req)
 	// set finalHandler
 	ib.pool.AddReqItem(po.RequestContext, reqID, &reqItem{
 		finalHandler: po.FinalRespHandle,
+		topic:        ib.topic,
+		req:          req,
 	})
+	// call request handler
+	m := ib.reqhndl(context.TODO(), req)
 
-	// handle
-
-	panic("not implemented")
+	ib.rw.RLock()
+	defer ib.rw.RUnlock()
+	// check hit
+	if m != nil && m.Hit {
+		err := ib.handleHit(myself, req, m)
+		if err != nil {
+			return err
+		}
+		// TODO: maybe we need a option to stop further forward when node is hit locally
+	}
+	return ib.handleForward(myself, req)
 }
 
 func (ib *IntBFS) Close() error {
-	panic("not implemented")
+	// as wires don't have leave method, just leave it.
+	return nil
 }
 
 /*===========================================================================*/
 
-func (ib *IntBFS) HandleMsg(from peer.ID, data []byte) {
+func (ib *IntBFS) handleMsg(from peer.ID, data []byte) {
 	// decode msg
 	msg := &pb.Msg{}
 	err := msg.Unmarshal(data)
 	if err != nil {
 		ib.log.Logf("info", "msg unmarshal error:%v", err)
+		return
 	}
 
 	ib.rw.Lock()
@@ -199,6 +227,8 @@ func (ib *IntBFS) HandleMsg(from peer.ID, data []byte) {
 		ib.handleIncomingRequest(from, msg.Request)
 	case pb.Msg_Response:
 		ib.handleIncomingResponse(from, msg.Response)
+	case pb.Msg_Hit:
+		ib.handleIncomingHit(from, msg.Request, msg.Response)
 	case pb.Msg_Unknown:
 		fallthrough
 	default:
@@ -220,15 +250,28 @@ func (ib *IntBFS) HandlePeerUp(p peer.ID) {
 		ib.log.Logf("warn", "HandlePeerUp: %s profile exists", p.ShortString())
 		return
 	}
-	ib.profiles[p] = ib.opts.ProfileFactory()
+	ib.profiles[p] = ib.profact()
 }
 
 func (ib *IntBFS) handleIncomingRequest(from peer.ID, req *Request) error {
+
+	reqID := ib.reqidfn(req)
+	if _, ok, _ := ib.pool.GetReqItem(reqID); ok {
+		// msg has seen
+		return nil
+	}
+
+	// insert request in cache
+	ib.pool.AddReqItem(context.TODO(), reqID, &reqItem{
+		finalHandler: nil,
+		topic:        ib.topic,
+		req:          req,
+	})
 	// call request handler
-	m := ib.opts.RequestHandler(context.TODO(), req)
+	m := ib.reqhndl(context.TODO(), req)
 
 	// check hit
-	if m.Hit {
+	if m != nil && m.Hit {
 		err := ib.handleHit(from, req, m)
 		if err != nil {
 			return err
@@ -239,9 +282,10 @@ func (ib *IntBFS) handleIncomingRequest(from peer.ID, req *Request) error {
 }
 
 func (ib *IntBFS) handleForward(from peer.ID, req *Request) error {
+
 	// find k highest peerProfile peers
 	// then find r random peers not within the previous k-set
-	peers := ib.ranks(req.Payload)
+	peers := ib.ranks(from, req)
 	bound := k + r
 	if len(peers) <= bound {
 		bound = len(peers)
@@ -263,17 +307,54 @@ func (ib *IntBFS) handleForward(from peer.ID, req *Request) error {
 }
 
 func (ib *IntBFS) handleHit(from peer.ID, req *Request, intm *Intermediate) error {
-	// insert req into profile
+	reqID := ib.reqidfn(req)
+	// assemble resp
+	resp := &Response{
+		Control: pb.ResponseControl{
+			RequestId: reqID,
+			Requester: req.Control.Requester,
+			Responser: ib.wires.ID(),
+			Sender:    ib.wires.ID(),
+			Topic:     ib.topic,
+		},
+		Payload: intm.Payload,
+		Error:   nil,
+	}
+	// no need to insert profile
 	// send control message to neighbors, tell them that you're hit.
+	for _, peer := range ib.wires.Neighbors() {
+		ib.sendHit(peer, req, resp)
+	}
+
 	// send back response
-	panic("not implemented")
+	return ib.sendResponse(from, resp)
 }
 
-func (ib *IntBFS) handleIncomingResponse(from peer.ID, resp *Response) error {
+func (ib *IntBFS) handleIncomingResponse(from peer.ID, resp *Response) (err error) {
+	item, ok, _ := ib.pool.GetReqItem(resp.Control.RequestId)
+	if !ok {
+		return fmt.Errorf("cannot find reqItem for reqid=%s", resp.Control.RequestId)
+	}
 	// store query message according to cached content.
-	// reply to father node.
+	ib.profiles[from].Insert(item.req, resp)
 	// if it is rooted node, reply to user.
-	panic("not implemented")
+	if item.req.Control.Requester == ib.wires.ID() {
+		item.finalHandler(context.TODO(), resp)
+		return nil
+	}
+	// reply to father node.
+	resp.Control.Sender = ib.wires.ID()
+	err = ib.sendResponse(item.req.Control.Sender, resp)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (ib *IntBFS) handleIncomingHit(from peer.ID, req *Request, resp *Response) (err error) {
+	// store query message according to cached content.
+	ib.profiles[from].Insert(req, resp)
+	return nil
 }
 
 /*===========================================================================*/
@@ -281,25 +362,25 @@ func (ib *IntBFS) handleIncomingResponse(from peer.ID, resp *Response) error {
 /*===========================================================================*/
 
 func (ib *IntBFS) sendRequest(to peer.ID, req *Request) error {
-	msg := &pb.Msg{
-		Type:     pb.Msg_Request,
-		Request:  req,
-		Response: nil,
-	}
-	data, err := msg.Marshal()
-	if err != nil {
-		ib.log.Logf("error", "request marshal error:%v", err)
-		return err
-	}
-	return ib.wires.SendMsg(to, data)
+	return ib.sendMsg(to, pb.Msg_Request, req, nil)
 }
 
 func (ib *IntBFS) sendResponse(to peer.ID, resp *Response) error {
+	return ib.sendMsg(to, pb.Msg_Response, nil, resp)
+}
+
+func (ib *IntBFS) sendHit(to peer.ID, req *Request, resp *Response) error {
+	return ib.sendMsg(to, pb.Msg_Hit, req, resp)
+}
+
+func (ib *IntBFS) sendMsg(to peer.ID, mtype pb.Msg_MsgType, req *Request, resp *Response) error {
+
 	msg := &pb.Msg{
-		Type:     pb.Msg_Response,
-		Request:  nil,
+		Type:     mtype,
+		Request:  req,
 		Response: resp,
 	}
+
 	data, err := msg.Marshal()
 	if err != nil {
 		ib.log.Logf("error", "response marshal error:%v", err)
@@ -308,22 +389,30 @@ func (ib *IntBFS) sendResponse(to peer.ID, resp *Response) error {
 	return ib.wires.SendMsg(to, data)
 }
 
+/*===========================================================================*/
+// profiles
+/*===========================================================================*/
+
 type profileElement struct {
 	p   peer.ID
 	pro Profile
 }
 
-func (ib *IntBFS) ranks(reqPayload []byte) []peer.ID {
+func (ib *IntBFS) ranks(from peer.ID, req *Request) []peer.ID {
 	elems := make([]profileElement, 0, len(ib.profiles))
 	out := make([]peer.ID, 0, len(ib.profiles))
 	for p, pro := range ib.profiles {
+		if p == from {
+			// don't send back the request to the father node
+			continue
+		}
 		elems = append(elems, profileElement{
 			p:   p,
 			pro: pro,
 		})
 	}
 	sort.Slice(elems, func(i, j int) bool {
-		return elems[i].pro.Less(elems[j].pro, reqPayload)
+		return elems[i].pro.Less(elems[j].pro, req)
 	})
 	for i := range elems {
 		out = append(out, elems[i].p)
@@ -331,26 +420,22 @@ func (ib *IntBFS) ranks(reqPayload []byte) []peer.ID {
 	return out
 }
 
-/*===========================================================================*/
-// profiles
-/*===========================================================================*/
-
 // ProfileFactory generates a Profile
 type ProfileFactory func() Profile
 
 // Profile stores query profiles
 type Profile interface {
-	Insert(from peer.ID, reqPayload []byte)
 	//
-	Less(that Profile, reqPayload []byte) bool
+	Insert(req *Request, resp *Response)
+	//
+	Less(that Profile, req *Request) bool
 }
 
 type defaultProfile struct{}
 
-func (d *defaultProfile) Insert(from peer.ID, req []byte) {
-
+func (d *defaultProfile) Insert(req *Request, resp *Response) {
 }
-func (d *defaultProfile) Less(that Profile, req []byte) bool {
+func (d *defaultProfile) Less(that Profile, req *Request) bool {
 	return true
 }
 
@@ -363,21 +448,26 @@ type IntBFSOptions struct {
 	ProfileFactory
 	RequestHandler
 	ReqIDFn
+	Logger
+	Topic string
 }
 
 var defaultProfileFactory = func() Profile { return &defaultProfile{} }
 
-// DefaultIntBFSOptions .
-func DefaultIntBFSOptions() *IntBFSOptions {
+// MakeDefaultIntBFSOptions .
+func MakeDefaultIntBFSOptions() *IntBFSOptions {
 	return &IntBFSOptions{
 		ProfileFactory: defaultProfileFactory,
 		RequestHandler: defaultRequestHandler,
+		ReqIDFn:        DefaultReqIDFn,
+		Logger:         MakeDefaultLogger(),
+		Topic:          "",
 	}
 }
 
 func checkIntBFSOpitons(opts *IntBFSOptions) error {
 	if opts == nil {
-		opts = DefaultIntBFSOptions()
+		opts = MakeDefaultIntBFSOptions()
 	}
 	if opts.ProfileFactory == nil {
 		return fmt.Errorf("nil profile factory")
@@ -387,6 +477,9 @@ func checkIntBFSOpitons(opts *IntBFSOptions) error {
 	}
 	if opts.ReqIDFn == nil {
 		return fmt.Errorf("nil ReqIDFn")
+	}
+	if opts.Logger == nil {
+		return fmt.Errorf("nil Logger")
 	}
 	return nil
 }

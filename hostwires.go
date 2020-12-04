@@ -30,6 +30,7 @@ func NewHostWires(h host.Host) *HostWires {
 		down:   func(p peer.ID) {},
 		msghdl: func(from peer.ID, data []byte) {},
 	}
+	h.Network().Notify(out)
 	h.SetStreamHandler(protocol.ID(HostWiresProcotolID), out.handleStream)
 	return out
 }

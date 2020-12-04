@@ -20,6 +20,10 @@ func mustNewIntBFS(mnet *mock.Net, opts *IntBFSOptions) *IntBFS {
 	if err != nil {
 		panic(err)
 	}
+	err = mnet.ConnectAllButSelf(host)
+	if err != nil {
+		panic(err)
+	}
 	return intbfs
 }
 
@@ -28,25 +32,23 @@ func TestIntBFSReqSendRecv(t *testing.T) {
 	pubCh := make(chan struct{}, 1)
 	subCh := make(chan struct{}, 1)
 	data := []byte{1, 2, 3}
-	pubOpts := &IntBFSOptions{
-		ProfileFactory: defaultProfileFactory,
-		RequestHandler: func(ctx context.Context, req *Request) *Intermediate {
-			assert.Equal(t, data, req.Payload)
-			pubCh <- struct{}{}
-			return nil
-		},
+	pubOpts := MakeDefaultIntBFSOptions()
+	pubOpts.RequestHandler = func(ctx context.Context, req *Request) *Intermediate {
+		assert.Equal(t, data, req.Payload)
+		pubCh <- struct{}{}
+		return nil
 	}
-	subOpts := &IntBFSOptions{
-		ProfileFactory: defaultProfileFactory,
-		RequestHandler: func(ctx context.Context, req *Request) *Intermediate {
-			assert.Equal(t, data, req.Payload)
-			subCh <- struct{}{}
-			return nil
-		},
+	subOpts := MakeDefaultIntBFSOptions()
+	subOpts.RequestHandler = func(ctx context.Context, req *Request) *Intermediate {
+		assert.Equal(t, data, req.Payload)
+		subCh <- struct{}{}
+		return nil
 	}
 
 	pubIntBFS := mustNewIntBFS(mnet, pubOpts)
 	subIntBFS := mustNewIntBFS(mnet, subOpts)
+
+	time.Sleep(50 * time.Millisecond)
 
 	defer pubIntBFS.Close()
 	defer subIntBFS.Close()
@@ -73,22 +75,18 @@ func TestIntBFSRespSendRecv(t *testing.T) {
 	mnet := mock.NewMockNet()
 	okCh := make(chan struct{}, 1)
 	data := []byte{1, 2, 3}
-	pubOpts := &IntBFSOptions{
-		ProfileFactory: defaultProfileFactory,
-		RequestHandler: func(ctx context.Context, req *Request) *Intermediate {
-			return &Intermediate{
-				Hit: false,
-			}
-		},
+	pubOpts := MakeDefaultIntBFSOptions()
+	pubOpts.RequestHandler = func(ctx context.Context, req *Request) *Intermediate {
+		return &Intermediate{
+			Hit: false,
+		}
 	}
-	subOpts := &IntBFSOptions{
-		ProfileFactory: defaultProfileFactory,
-		RequestHandler: func(ctx context.Context, req *Request) *Intermediate {
-			return &Intermediate{
-				Hit:     true,
-				Payload: req.Payload,
-			}
-		},
+	subOpts := MakeDefaultIntBFSOptions()
+	subOpts.RequestHandler = func(ctx context.Context, req *Request) *Intermediate {
+		return &Intermediate{
+			Hit:     true,
+			Payload: req.Payload,
+		}
 	}
 
 	pubIntBFS := mustNewIntBFS(mnet, pubOpts)
