@@ -10,6 +10,7 @@ import (
 // requestCache .
 // requestCache is used to store the request control message,
 // which is for response routing.
+// TODO: rename it to requestCache.
 type requestWorkerPool struct {
 	cache *lru.Cache
 }

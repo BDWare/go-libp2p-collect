@@ -29,10 +29,15 @@ type Notif = pubsub.PubSubNotif
 // MsgIDFn is type alias.
 type MsgIDFn = pubsub.MsgIdFunction
 
+type TopicWireListener = pubsub.TopicWireListener
+
+type TopicMsgHandler = pubsub.TopicMsgHandler
+
 // function aliases
 var (
 	NewRandomSub        = pubsub.NewRandomSub
 	NewGossipSub        = pubsub.NewGossipSub
+	NewTopicWires       = pubsub.NewPubSubTopicWires
 	WithCustomProtocols = pubsub.WithCustomProtocols
 	WithEventTracer     = pubsub.WithEventTracer
 	WithMessageIDFn     = pubsub.WithMessageIdFn

@@ -4,6 +4,7 @@ import (
 	"io"
 
 	"github.com/bdware/go-libp2p-collect/pb"
+	"github.com/bdware/go-libp2p-collect/pubsub"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 
@@ -37,6 +38,12 @@ type Intermediate = pb.Intermediate
 // RequestID type alias
 type RequestID = pb.RequestID
 
+// TopicWireListener .
+type TopicWireListener = pubsub.TopicWireListener
+
+// TopicMsgHandler .
+type TopicMsgHandler = pubsub.TopicMsgHandler
+
 type TopicWires interface {
 	ID() peer.ID
 	Join(topic string) error
@@ -49,11 +56,6 @@ type TopicWires interface {
 	io.Closer
 }
 
-type TopicWireListener interface {
-	HandlePeerUp(p peer.ID, topic string)
-	HandlePeerDown(p peer.ID, topic string)
-}
-
 type Wires interface {
 	ID() peer.ID
 	Neighbors() []peer.ID
@@ -61,11 +63,11 @@ type Wires interface {
 	SendMsg(to peer.ID, data []byte) error
 	SetMsgHandler(h MsgHandler)
 }
+
+// MsgHandler .
+type MsgHandler func(from peer.ID, data []byte)
+
 type WireListener interface {
 	HandlePeerUp(p peer.ID)
 	HandlePeerDown(p peer.ID)
 }
-
-type TopicMsgHandler func(topic string, from peer.ID, data []byte)
-
-type MsgHandler func(from peer.ID, data []byte)

@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 
 	"github.com/bdware/go-libp2p-collect/pb"
+	"github.com/bdware/go-libp2p-collect/pubsub"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/protocol"
@@ -19,7 +20,6 @@ const (
 )
 
 // IntBFSCollector .
-// Unlike basic and relay pubsubCollector, IntBFSCollector isn't based on go-libp2p-pubsub.
 // We used a topic-defined overlay here.
 type IntBFSCollector struct {
 	rw     sync.RWMutex
@@ -34,20 +34,31 @@ func NewIntBFSCollector(h host.Host, opts ...InitOpt) (*IntBFSCollector, error) 
 	if err != nil {
 		return nil, err
 	}
-	if initOpts.Wires == nil {
-		return nil, ErrNilTopicWires
+	wires := initOpts.Wires
+	if wires == nil {
+		tw, err := pubsub.NewTopicWires(h)
+		if err != nil {
+			return nil, err
+		}
+		wires = tw
 	}
+
 	ic := &IntBFSCollector{
 		rw:     sync.RWMutex{},
-		host:   h,
 		topics: make(map[string]*IntBFS),
-		hub:    NewTopicHub(initOpts.Wires),
+		hub:    NewTopicHub(wires),
 		log:    initOpts.Logger,
 	}
 	return ic, nil
 }
 
 func (ic *IntBFSCollector) Join(topic string, opts ...JoinOpt) (err error) {
+
+	jo, err := NewJoinOptions(opts)
+	if err != nil {
+		return err
+	}
+
 	ic.rw.Lock()
 	defer ic.rw.Unlock()
 
@@ -65,7 +76,13 @@ func (ic *IntBFSCollector) Join(topic string, opts ...JoinOpt) (err error) {
 
 	intbfs, err := NewIntBFS(
 		wires,
-		MakeDefaultIntBFSOptions(),
+		&IntBFSOptions{
+			ProfileFactory: jo.ProfileFactory,
+			RequestHandler: jo.RequestHandler,
+			ReqIDFn:        DefaultReqIDFn,
+			Logger:         ic.log,
+			Topic:          topic,
+		},
 	)
 	if err != nil {
 		return err
@@ -113,6 +130,12 @@ func (ic *IntBFSCollector) Close() error {
 
 /*===========================================================================*/
 
+const (
+	k         = 5    // fanout
+	r         = 1    // random perturbation
+	cacheSize = 1024 // request cache size
+)
+
 // IntBFS don't care about topic.
 // IntBFS contains 5 parts:
 // 1. query machanism
@@ -120,12 +143,6 @@ func (ic *IntBFSCollector) Close() error {
 // 3. peer ranking
 // 4. distance function
 // 5. random perturbation
-
-const (
-	k = 5 // fanout
-	r = 1 // random perturbation
-)
-
 type IntBFS struct {
 	rw       sync.RWMutex
 	wires    Wires
@@ -136,14 +153,14 @@ type IntBFS struct {
 	reqidfn  ReqIDFn
 	reqhndl  RequestHandler
 	seqno    uint64
-	pool     *requestWorkerPool
+	cache    *requestWorkerPool
 }
 
 func NewIntBFS(wires Wires, opts *IntBFSOptions) (*IntBFS, error) {
 	if err := checkIntBFSOpitons(opts); err != nil {
 		return nil, err
 	}
-	pool, err := newRequestWorkerPool(1024)
+	cache, err := newRequestWorkerPool(cacheSize)
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +174,7 @@ func NewIntBFS(wires Wires, opts *IntBFSOptions) (*IntBFS, error) {
 		reqidfn:  opts.ReqIDFn,
 		reqhndl:  opts.RequestHandler,
 		seqno:    rand.Uint64(),
-		pool:     pool,
+		cache:    cache,
 	}
 	wires.SetListener(out)
 	wires.SetMsgHandler(out.handleMsg)
@@ -182,7 +199,7 @@ func (ib *IntBFS) Publish(data []byte, opts ...PubOpt) error {
 	}
 	reqID := ib.reqidfn(req)
 	// set finalHandler
-	ib.pool.AddReqItem(po.RequestContext, reqID, &reqItem{
+	ib.cache.AddReqItem(po.RequestContext, reqID, &reqItem{
 		finalHandler: po.FinalRespHandle,
 		topic:        ib.topic,
 		req:          req,
@@ -256,13 +273,13 @@ func (ib *IntBFS) HandlePeerUp(p peer.ID) {
 func (ib *IntBFS) handleIncomingRequest(from peer.ID, req *Request) error {
 
 	reqID := ib.reqidfn(req)
-	if _, ok, _ := ib.pool.GetReqItem(reqID); ok {
+	if _, ok, _ := ib.cache.GetReqItem(reqID); ok {
 		// msg has seen
 		return nil
 	}
 
 	// insert request in cache
-	ib.pool.AddReqItem(context.TODO(), reqID, &reqItem{
+	ib.cache.AddReqItem(context.TODO(), reqID, &reqItem{
 		finalHandler: nil,
 		topic:        ib.topic,
 		req:          req,
@@ -331,7 +348,7 @@ func (ib *IntBFS) handleHit(from peer.ID, req *Request, intm *Intermediate) erro
 }
 
 func (ib *IntBFS) handleIncomingResponse(from peer.ID, resp *Response) (err error) {
-	item, ok, _ := ib.pool.GetReqItem(resp.Control.RequestId)
+	item, ok, _ := ib.cache.GetReqItem(resp.Control.RequestId)
 	if !ok {
 		return fmt.Errorf("cannot find reqItem for reqid=%s", resp.Control.RequestId)
 	}
