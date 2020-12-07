@@ -19,6 +19,7 @@ func NewTopicHub(tw TopicWires) *TopicHub {
 		outbounds: make(map[string]*outbound),
 	}
 	tw.SetListener(out)
+	tw.SetTopicMsgHandler(out.handleMsg)
 	return out
 }
 
@@ -78,7 +79,7 @@ func (th *TopicHub) HandlePeerUp(p peer.ID, topic string) {
 		// TODO
 		return
 	}
-	o.listener.HandlePeerUp(p)
+	o.handleUp(p)
 }
 
 func (th *TopicHub) HandlePeerDown(p peer.ID, topic string) {
@@ -89,7 +90,7 @@ func (th *TopicHub) HandlePeerDown(p peer.ID, topic string) {
 		// TODO
 		return
 	}
-	o.listener.HandlePeerDown(p)
+	o.handleDown(p)
 }
 
 func (th *TopicHub) handleMsg(topic string, from peer.ID, data []byte) {
@@ -113,6 +114,7 @@ func (th *TopicHub) newOutbound(topic string) *outbound {
 }
 
 type outbound struct {
+	rw       sync.RWMutex
 	hub      *TopicHub
 	topic    string
 	listener WireListener
@@ -128,6 +130,8 @@ func (o *outbound) Neighbors() []peer.ID {
 }
 
 func (o *outbound) SetListener(wl WireListener) {
+	o.rw.Lock()
+	defer o.rw.Unlock()
 	o.listener = wl
 }
 
@@ -135,7 +139,21 @@ func (o *outbound) SendMsg(to peer.ID, data []byte) error {
 	return o.hub.tw.SendMsg(o.topic, to, data)
 }
 func (o *outbound) SetMsgHandler(h MsgHandler) {
+	o.rw.Lock()
+	defer o.rw.Unlock()
 	o.handler = h
+}
+
+func (o *outbound) handleUp(p peer.ID) {
+	o.rw.RLock()
+	defer o.rw.RUnlock()
+	go o.listener.HandlePeerUp(p)
+
+}
+func (o *outbound) handleDown(p peer.ID) {
+	o.rw.RLock()
+	defer o.rw.RUnlock()
+	go o.listener.HandlePeerDown(p)
 }
 
 type defaultWireNotifiee struct{}

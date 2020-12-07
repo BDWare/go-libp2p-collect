@@ -312,8 +312,9 @@ func (ib *IntBFS) handleForward(from peer.ID, req *Request) error {
 		j := k + rand.Intn(len(peers)-k)
 		peers[i], peers[j] = peers[j], peers[i]
 	}
+	tosend := peers[:bound]
 	// tosend is peers[0:k] + peers[k:bound]
-	for _, to := range peers[:bound] {
+	for _, to := range tosend {
 		go func(to peer.ID, req *Request) {
 			if err := ib.sendRequest(to, req); err != nil {
 				ib.log.Logf("error", "handleForward: %v", err)

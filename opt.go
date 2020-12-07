@@ -144,7 +144,7 @@ type JoinOpts struct {
 func NewJoinOptions(opts []JoinOpt) (out *JoinOpts, err error) {
 	out = &JoinOpts{
 		RequestHandler: defaultRequestHandler,
-		ProfileFactory: nil,
+		ProfileFactory: defaultProfileFactory,
 	}
 
 	for _, opt := range opts {
