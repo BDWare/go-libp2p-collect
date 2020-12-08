@@ -1,10 +1,12 @@
 package collect
 
 import (
+	"fmt"
 	"io"
 
 	"github.com/bdware/go-libp2p-collect/pb"
 	"github.com/bdware/go-libp2p-collect/pubsub"
+	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 
@@ -70,4 +72,24 @@ type MsgHandler func(from peer.ID, data []byte)
 type WireListener interface {
 	HandlePeerUp(p peer.ID)
 	HandlePeerDown(p peer.ID)
+}
+
+/*===========================================================================*/
+
+// NewCollector creates PubSubCollector.
+func NewCollector(h host.Host, opts ...InitOpt) (PubSubCollector, error) {
+	io, err := NewInitOpts(opts)
+	if err != nil {
+		return nil, err
+	}
+	switch io.Conf.Router {
+	case "basic":
+		return NewBasicPubSubCollector(h, opts...)
+	case "relay":
+		return NewRelayPubSubCollector(h, opts...)
+	case "intbfs":
+		return NewIntBFSCollector(h, opts...)
+	default:
+		return nil, fmt.Errorf("unknown router type")
+	}
 }

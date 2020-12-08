@@ -28,12 +28,10 @@ func NewInitOpts(opts []InitOpt) (out *InitOpts, err error) {
 		Logger: MakeDefaultLogger(),
 	}
 	for _, opt := range opts {
-		if err == nil {
-			err = opt(out)
+		err = opt(out)
+		if err != nil {
+			return nil, err
 		}
-	}
-	if err != nil {
-		return nil, err
 	}
 	// initialize reqIDFn and msgIDFn simultaneously
 	if out.ReqIDFn == nil {
@@ -43,7 +41,7 @@ func NewInitOpts(opts []InitOpt) (out *InitOpts, err error) {
 	return
 }
 
-// WithConf specifies configuration of basic pubsubcollector
+// WithConf specifies configuration of pubsubcollector
 func WithConf(conf Conf) InitOpt {
 	return func(opts *InitOpts) error {
 		opts.Conf = conf

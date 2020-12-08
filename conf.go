@@ -29,8 +29,11 @@ func checkOptConfAndGetInnerConf(optConf *Conf) (inner *conf, err error) {
 	return
 }
 
-// Conf is the static configuration of BasicPubSubCollector
+// Conf is the static configuration of PubSubCollector
 type Conf struct {
+	// Router is an option to select different router type
+	// Router must be one of `basic`, `relay` and `intbfs`
+	Router string `json:"router"`
 	// ProtocolPrefix is the protocol name prefix
 	ProtocolPrefix string `json:"protocol"`
 	// RequestCacheSize .
@@ -45,6 +48,7 @@ type Conf struct {
 // MakeDefaultConf returns a default Conf instance
 func MakeDefaultConf() Conf {
 	return Conf{
+		Router:            "intbfs",
 		ProtocolPrefix:    "/psc",
 		RequestCacheSize:  512,
 		ResponseCacheSize: 1024,
