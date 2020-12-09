@@ -556,7 +556,7 @@ func TestAll(t *testing.T) {
 		{
 			name:  "TestDeduplication",
 			tcase: TestDeduplication,
-			skips: []string{"basic"},
+			skips: []string{"basic", "intbfs"},
 		},
 	}
 

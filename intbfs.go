@@ -143,7 +143,7 @@ type Msg struct {
 
 type PubReq struct {
 	req   *Request
-	fhadl FinalRespHandler
+	po    *PubOpts
 	errCh chan error
 }
 
@@ -233,7 +233,7 @@ func (ib *IntBFS) Publish(data []byte, opts ...PubOpt) error {
 
 	pubReq := &PubReq{
 		req:   req,
-		fhadl: po.FinalRespHandle,
+		po:    po,
 		errCh: make(chan error),
 	}
 
@@ -285,7 +285,7 @@ func (ib *IntBFS) handleIncomingMsg(from peer.ID, msg *pb.Msg) {
 	// dispatch msg type
 	switch msg.Type {
 	case pb.Msg_Request:
-		ib.handleIncomingRequest(from, msg.Request, nil)
+		ib.handleIncomingRequest(context.TODO(), from, msg.Request, nil)
 	case pb.Msg_Response:
 		ib.handleIncomingResponse(from, msg.Response)
 	case pb.Msg_Hit:
@@ -299,7 +299,12 @@ func (ib *IntBFS) handleIncomingMsg(from peer.ID, msg *pb.Msg) {
 }
 
 func (ib *IntBFS) handlePublish(pub *PubReq) {
-	pub.errCh <- ib.handleIncomingRequest(ib.wires.ID(), pub.req, pub.fhadl)
+	pub.errCh <- ib.handleIncomingRequest(
+		pub.po.RequestContext,
+		ib.wires.ID(),
+		pub.req,
+		pub.po.FinalRespHandle,
+	)
 }
 
 /*===========================================================================*/
@@ -326,7 +331,7 @@ func (ib *IntBFS) HandlePeerUp(p peer.ID) {
 	ib.peerUpCh <- p
 }
 
-func (ib *IntBFS) handleIncomingRequest(from peer.ID, req *Request, finalHandler FinalRespHandler) error {
+func (ib *IntBFS) handleIncomingRequest(ctx context.Context, from peer.ID, req *Request, finalHandler FinalRespHandler) error {
 
 	reqID := ib.reqidfn(req)
 	if _, ok, _ := ib.cache.GetReqItem(reqID); ok {
@@ -335,7 +340,7 @@ func (ib *IntBFS) handleIncomingRequest(from peer.ID, req *Request, finalHandler
 	}
 
 	// insert request in cache
-	ib.cache.AddReqItem(context.TODO(), reqID, &reqItem{
+	ib.cache.AddReqItem(ctx, reqID, &reqItem{
 		finalHandler: finalHandler,
 		topic:        ib.topic,
 		req:          req,
