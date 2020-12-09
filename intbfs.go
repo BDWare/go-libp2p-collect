@@ -89,7 +89,7 @@ func (ic *IntBFSCollector) Join(topic string, opts ...JoinOpt) (err error) {
 	}
 
 	wires.SetListener(intbfs)
-	wires.SetMsgHandler(intbfs.handleMsg)
+	wires.SetMsgHandler(intbfs.handleMsgData)
 
 	ic.topics[topic] = intbfs
 
@@ -136,6 +136,22 @@ const (
 	cacheSize = 1024 // request cache size
 )
 
+type Msg struct {
+	peer peer.ID
+	*pb.Msg
+}
+
+type PubReq struct {
+	req   *Request
+	fhadl FinalRespHandler
+	errCh chan error
+}
+
+type EvalReqReq struct {
+	req    *Request
+	intmCh chan *Intermediate
+}
+
 // IntBFS don't care about topic.
 // IntBFS contains 5 parts:
 // 1. query machanism
@@ -154,6 +170,14 @@ type IntBFS struct {
 	reqhndl  RequestHandler
 	seqno    uint64
 	cache    *requestWorkerPool
+	//
+	incomingCh  chan *Msg
+	outgoingCh  chan *Msg
+	peerUpCh    chan peer.ID
+	peerDownCh  chan peer.ID
+	reqHandleCh chan *Request
+	finalRespCh chan *Response
+	publishCh   chan *PubReq
 }
 
 func NewIntBFS(wires Wires, opts *IntBFSOptions) (*IntBFS, error) {
@@ -175,9 +199,18 @@ func NewIntBFS(wires Wires, opts *IntBFSOptions) (*IntBFS, error) {
 		reqhndl:  opts.RequestHandler,
 		seqno:    rand.Uint64(),
 		cache:    cache,
+
+		incomingCh:  make(chan *Msg, 10),
+		outgoingCh:  make(chan *Msg),
+		peerUpCh:    make(chan peer.ID),
+		peerDownCh:  make(chan peer.ID),
+		reqHandleCh: make(chan *Request),
+		finalRespCh: make(chan *Response),
+		publishCh:   make(chan *PubReq),
 	}
 	wires.SetListener(out)
-	wires.SetMsgHandler(out.handleMsg)
+	wires.SetMsgHandler(out.handleMsgData)
+	go out.loop(context.TODO())
 	return out, nil
 }
 
@@ -197,27 +230,18 @@ func (ib *IntBFS) Publish(data []byte, opts ...PubOpt) error {
 		},
 		Payload: data,
 	}
-	reqID := ib.reqidfn(req)
-	// set finalHandler
-	ib.cache.AddReqItem(po.RequestContext, reqID, &reqItem{
-		finalHandler: po.FinalRespHandle,
-		topic:        ib.topic,
-		req:          req,
-	})
-	// call request handler
-	m := ib.reqhndl(context.TODO(), req)
 
-	ib.rw.RLock()
-	defer ib.rw.RUnlock()
-	// check hit
-	if m != nil && m.Hit {
-		err := ib.handleHit(myself, req, m)
-		if err != nil {
-			return err
-		}
-		// TODO: maybe we need a option to stop further forward when node is hit locally
+	pubReq := &PubReq{
+		req:   req,
+		fhadl: po.FinalRespHandle,
+		errCh: make(chan error),
 	}
-	return ib.handleForward(myself, req)
+
+	ib.publishCh <- pubReq
+
+	return <-pubReq.errCh
+
+	// return ib.handleIncomingRequest(ib.wires.ID(), req, po.FinalRespHandle)
 }
 
 func (ib *IntBFS) Close() error {
@@ -227,21 +251,41 @@ func (ib *IntBFS) Close() error {
 
 /*===========================================================================*/
 
-func (ib *IntBFS) handleMsg(from peer.ID, data []byte) {
-	// decode msg
-	msg := &pb.Msg{}
-	err := msg.Unmarshal(data)
-	if err != nil {
-		ib.log.Logf("info", "msg unmarshal error:%v", err)
+func (ib *IntBFS) loop(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case msg := <-ib.incomingCh:
+			ib.handleIncomingMsg(msg.peer, msg.Msg)
+		case peer := <-ib.peerUpCh:
+			ib.handlePeerUp(peer)
+		case peer := <-ib.peerDownCh:
+			ib.handlePeerDown(peer)
+		case pub := <-ib.publishCh:
+			ib.handlePublish(pub)
+		}
+	}
+}
+
+func (ib *IntBFS) handlePeerDown(p peer.ID) {
+	delete(ib.profiles, p)
+}
+
+func (ib *IntBFS) handlePeerUp(p peer.ID) {
+	if _, ok := ib.profiles[p]; ok {
+		ib.log.Logf("warn", "HandlePeerUp: %s profile exists", p.ShortString())
 		return
 	}
+	ib.profiles[p] = ib.profact()
+}
 
-	ib.rw.Lock()
-	defer ib.rw.Unlock()
+func (ib *IntBFS) handleIncomingMsg(from peer.ID, msg *pb.Msg) {
+	ib.log.Logf("info", "handleIncomingMsg")
 	// dispatch msg type
 	switch msg.Type {
 	case pb.Msg_Request:
-		ib.handleIncomingRequest(from, msg.Request)
+		ib.handleIncomingRequest(from, msg.Request, nil)
 	case pb.Msg_Response:
 		ib.handleIncomingResponse(from, msg.Response)
 	case pb.Msg_Hit:
@@ -254,23 +298,35 @@ func (ib *IntBFS) handleMsg(from peer.ID, data []byte) {
 	}
 }
 
+func (ib *IntBFS) handlePublish(pub *PubReq) {
+	pub.errCh <- ib.handleIncomingRequest(ib.wires.ID(), pub.req, pub.fhadl)
+}
+
+/*===========================================================================*/
+
+func (ib *IntBFS) handleMsgData(from peer.ID, data []byte) {
+	// decode msg
+	m := &pb.Msg{}
+	err := m.Unmarshal(data)
+	if err != nil {
+		ib.log.Logf("info", "msg unmarshal error:%v", err)
+		return
+	}
+	ib.incomingCh <- &Msg{
+		peer: from,
+		Msg:  m,
+	}
+}
+
 func (ib *IntBFS) HandlePeerDown(p peer.ID) {
-	ib.rw.Lock()
-	defer ib.rw.Unlock()
-	delete(ib.profiles, p)
+	ib.peerDownCh <- p
 }
 
 func (ib *IntBFS) HandlePeerUp(p peer.ID) {
-	ib.rw.Lock()
-	defer ib.rw.Unlock()
-	if _, ok := ib.profiles[p]; ok {
-		ib.log.Logf("warn", "HandlePeerUp: %s profile exists", p.ShortString())
-		return
-	}
-	ib.profiles[p] = ib.profact()
+	ib.peerUpCh <- p
 }
 
-func (ib *IntBFS) handleIncomingRequest(from peer.ID, req *Request) error {
+func (ib *IntBFS) handleIncomingRequest(from peer.ID, req *Request, finalHandler FinalRespHandler) error {
 
 	reqID := ib.reqidfn(req)
 	if _, ok, _ := ib.cache.GetReqItem(reqID); ok {
@@ -280,7 +336,7 @@ func (ib *IntBFS) handleIncomingRequest(from peer.ID, req *Request) error {
 
 	// insert request in cache
 	ib.cache.AddReqItem(context.TODO(), reqID, &reqItem{
-		finalHandler: nil,
+		finalHandler: finalHandler,
 		topic:        ib.topic,
 		req:          req,
 	})
@@ -338,14 +394,18 @@ func (ib *IntBFS) handleHit(from peer.ID, req *Request, intm *Intermediate) erro
 		Payload: intm.Payload,
 		Error:   nil,
 	}
+
 	// no need to insert profile
 	// send control message to neighbors, tell them that you're hit.
 	for _, peer := range ib.wires.Neighbors() {
 		ib.sendHit(peer, req, resp)
 	}
 
+	ib.log.Logf("info", "%s: handleHit:from=%s", ib.wires.ID().ShortString(), from.ShortString())
+
 	// send back response
-	return ib.sendResponse(from, resp)
+	ib.sendResponse(from, resp)
+	return nil
 }
 
 func (ib *IntBFS) handleIncomingResponse(from peer.ID, resp *Response) (err error) {
@@ -353,6 +413,13 @@ func (ib *IntBFS) handleIncomingResponse(from peer.ID, resp *Response) (err erro
 	if !ok {
 		return fmt.Errorf("cannot find reqItem for reqid=%s", resp.Control.RequestId)
 	}
+
+	// report to final response handler
+	if resp.Control.Requester == ib.wires.ID() {
+		item.finalHandler(context.TODO(), resp)
+		return nil
+	}
+
 	// store query message according to cached content.
 	ib.profiles[from].Insert(item.req, resp)
 	// if it is rooted node, reply to user.
@@ -397,6 +464,15 @@ func (ib *IntBFS) sendMsg(to peer.ID, mtype pb.Msg_MsgType, req *Request, resp *
 		Type:     mtype,
 		Request:  req,
 		Response: resp,
+	}
+
+	if ib.wires.ID() == to {
+		// local msg
+		ib.incomingCh <- &Msg{
+			peer: ib.wires.ID(),
+			Msg:  msg,
+		}
+		return nil
 	}
 
 	data, err := msg.Marshal()
