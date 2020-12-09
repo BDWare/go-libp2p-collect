@@ -42,7 +42,7 @@ var tconf Conf = makeRouterConf("intbfs")
 
 // cases
 
-func TestSendRecv(t *testing.T) {
+func testSendRecv(t *testing.T) {
 	mnet := mock.NewMockNet()
 	pubhost, err := mnet.NewLinkedPeer()
 	assert.NoError(t, err)
@@ -109,7 +109,7 @@ func TestSendRecv(t *testing.T) {
 	}
 }
 
-func TestSelfPub(t *testing.T) {
+func testSelfPub(t *testing.T) {
 	mnet := mock.NewMockNet()
 	pubhost, err := mnet.NewLinkedPeer()
 	assert.NoError(t, err)
@@ -157,7 +157,7 @@ func TestSelfPub(t *testing.T) {
 	}
 }
 
-func TestRejoin(t *testing.T) {
+func testRejoin(t *testing.T) {
 	mnet := mock.NewMockNet()
 	h, err := mnet.NewLinkedPeer()
 	assert.NoError(t, err)
@@ -213,7 +213,7 @@ func TestRejoin(t *testing.T) {
 	}
 }
 
-func TestLeaveAndJoin(t *testing.T) {
+func testLeaveAndJoin(t *testing.T) {
 	mnet := mock.NewMockNet()
 	pubhost, err := mnet.NewLinkedPeer()
 	assert.NoError(t, err)
@@ -308,7 +308,7 @@ func TestLeaveAndJoin(t *testing.T) {
 	}
 }
 
-func TestRequestContextExpired(t *testing.T) {
+func testRequestContextExpired(t *testing.T) {
 	// FinalResponseHandler shouldn't be called after the request context expires.
 	mnet := mock.NewMockNet()
 	pubhost, err := mnet.NewLinkedPeer()
@@ -373,7 +373,7 @@ func TestRequestContextExpired(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 }
 
-func TestFinalDeduplication(t *testing.T) {
+func testFinalDeduplication(t *testing.T) {
 	// A -- B
 	// |
 	// C
@@ -436,7 +436,7 @@ func TestFinalDeduplication(t *testing.T) {
 	assert.Equal(t, atomic.LoadInt32(&count), int32(1))
 }
 
-func TestDeduplication(t *testing.T) {
+func testDeduplication(t *testing.T) {
 	// A -- B -- C
 	// A broadcasts, then B and C response to it with the same content;
 	// B should be able to intercept the response from C, because it knows
@@ -528,34 +528,34 @@ func TestAll(t *testing.T) {
 	}{
 		{
 			name:  "TestLeaveAndJoin",
-			tcase: TestLeaveAndJoin,
+			tcase: testLeaveAndJoin,
 			skips: []string{"relay"},
 		},
 		{
 			name:  "TestRejoin",
-			tcase: TestRejoin,
+			tcase: testRejoin,
 			skips: []string{"intbfs"},
 		},
 		{
 			name:  "TestSelfPub",
-			tcase: TestSelfPub,
+			tcase: testSelfPub,
 		},
 		{
 			name:  "TestSendRecv",
-			tcase: TestSendRecv,
+			tcase: testSendRecv,
 		},
 		{
 			name:  "TestRequestContextExpired",
-			tcase: TestRequestContextExpired,
+			tcase: testRequestContextExpired,
 		},
 
 		{
 			name:  "TestFinalDeduplication",
-			tcase: TestFinalDeduplication,
+			tcase: testFinalDeduplication,
 		},
 		{
 			name:  "TestDeduplication",
-			tcase: TestDeduplication,
+			tcase: testDeduplication,
 			skips: []string{"basic", "intbfs"},
 		},
 	}
