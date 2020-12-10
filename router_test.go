@@ -42,7 +42,7 @@ var tconf Conf = makeRouterConf("intbfs")
 
 // cases
 
-func testSendRecv(t *testing.T) {
+func testSendRecvData(t *testing.T, payload []byte) {
 	mnet := mock.NewMockNet()
 	pubhost, err := mnet.NewLinkedPeer()
 	assert.NoError(t, err)
@@ -62,7 +62,6 @@ func testSendRecv(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	topic := "test-topic"
-	payload := []byte{1, 2, 3}
 
 	// handlePub and handleSub is both request handle,
 	// but handleSub will send back the response
@@ -499,6 +498,15 @@ func testDeduplication(t *testing.T) {
 	assert.Equal(t, atomic.LoadInt32(&count), int32(1))
 }
 
+func testSendRecv(t *testing.T) {
+	testSendRecvData(t, []byte{1, 2, 3})
+}
+
+func testSendRecvBig(t *testing.T) {
+	big := make([]byte, 1000000) // 1M
+	testSendRecvData(t, big)
+}
+
 /*========================================================================*/
 // settings
 func TestAll(t *testing.T) {
@@ -557,6 +565,10 @@ func TestAll(t *testing.T) {
 			name:  "TestDeduplication",
 			tcase: testDeduplication,
 			skips: []string{"basic", "intbfs"},
+		},
+		{
+			name:  "TestSendRecvBig",
+			tcase: testSendRecvBig,
 		},
 	}
 
