@@ -131,9 +131,10 @@ func (ic *IntBFSCollector) Close() error {
 /*===========================================================================*/
 
 const (
-	k         = 5    // fanout
-	r         = 1    // random perturbation
-	cacheSize = 1024 // request cache size
+	k             = 5    // fanout
+	r             = 1    // random perturbation
+	msgBufferSize = 1024 // msg buffer size
+	cacheSize     = 1024 // request cache size
 )
 
 type Msg struct {
@@ -200,7 +201,7 @@ func NewIntBFS(wires Wires, opts *IntBFSOptions) (*IntBFS, error) {
 		seqno:    rand.Uint64(),
 		cache:    cache,
 
-		incomingCh:  make(chan *Msg, 10),
+		incomingCh:  make(chan *Msg, msgBufferSize),
 		outgoingCh:  make(chan *Msg),
 		peerUpCh:    make(chan peer.ID),
 		peerDownCh:  make(chan peer.ID),
@@ -281,7 +282,6 @@ func (ib *IntBFS) handlePeerUp(p peer.ID) {
 }
 
 func (ib *IntBFS) handleIncomingMsg(from peer.ID, msg *pb.Msg) {
-	ib.log.Logf("info", "handleIncomingMsg")
 	// dispatch msg type
 	switch msg.Type {
 	case pb.Msg_Request:
@@ -332,10 +332,11 @@ func (ib *IntBFS) HandlePeerUp(p peer.ID) {
 }
 
 func (ib *IntBFS) handleIncomingRequest(ctx context.Context, from peer.ID, req *Request, finalHandler FinalRespHandler) error {
-
+	ib.log.Logf("debug", "handleIncomingRequest: from=%s, req=%+v", from, req)
 	reqID := ib.reqidfn(req)
 	if _, ok, _ := ib.cache.GetReqItem(reqID); ok {
 		// msg has seen
+		ib.log.Logf("info", "handleIncomingRequest: have seen reqid=%s", reqID)
 		return nil
 	}
 
@@ -375,7 +376,12 @@ func (ib *IntBFS) handleForward(from peer.ID, req *Request) error {
 	}
 	tosend := peers[:bound]
 	// tosend is peers[0:k] + peers[k:bound]
+	ib.log.Logf("debug", "handleForward: tosend=%v", tosend)
 	for _, to := range tosend {
+		if to == ib.wires.ID() {
+			ib.log.Logf("warn", "handleForward:cannot send to myself")
+			continue
+		}
 		go func(to peer.ID, req *Request) {
 			if err := ib.sendRequest(to, req); err != nil {
 				ib.log.Logf("error", "handleForward: %v", err)
@@ -416,25 +422,30 @@ func (ib *IntBFS) handleHit(from peer.ID, req *Request, intm *Intermediate) erro
 func (ib *IntBFS) handleIncomingResponse(from peer.ID, resp *Response) (err error) {
 	item, ok, _ := ib.cache.GetReqItem(resp.Control.RequestId)
 	if !ok {
-		ib.log.Logf("error", "cannot find reqItem for reqid=%s", resp.Control.RequestId)
-		return fmt.Errorf("cannot find reqItem for reqid=%s", resp.Control.RequestId)
-	}
-
-	// report to final response handler
-	if resp.Control.Requester == ib.wires.ID() {
-		item.finalHandler(context.TODO(), resp)
+		ib.log.Logf("info", "handleIncomingResponse: cannot find reqItem for reqid=%s", resp.Control.RequestId)
+		// it is ok when we received a response without related reqItem.
+		// This is because the request is cancelled before we receive the response.
+		// TODO: update profiles without reqItem
 		return nil
 	}
 
 	// store query message according to cached content.
 	pro, ok := ib.profiles[from]
 	if !ok {
-		ib.log.Logf("error", "cannot find profile for peer %s", from.ShortString())
+		ib.log.Logf("warn", "cannot find profile for peer %s", from.ShortString())
 		return fmt.Errorf("cannot find profile for peer %s", from.ShortString())
 	}
 	pro.Insert(item.req, resp)
+
 	// if it is rooted node, reply to user.
 	if item.req.Control.Requester == ib.wires.ID() {
+		if item.finalHandler == nil {
+			ib.log.Logf("error", "handleIncomingResponse: nil finalHandler, from=%s, reqid=%s",
+				from.ShortString(),
+				resp.Control.RequestId,
+			)
+			return fmt.Errorf("nil finalHandler")
+		}
 		item.finalHandler(context.TODO(), resp)
 		return nil
 	}
