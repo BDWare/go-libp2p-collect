@@ -416,6 +416,7 @@ func (ib *IntBFS) handleHit(from peer.ID, req *Request, intm *Intermediate) erro
 func (ib *IntBFS) handleIncomingResponse(from peer.ID, resp *Response) (err error) {
 	item, ok, _ := ib.cache.GetReqItem(resp.Control.RequestId)
 	if !ok {
+		ib.log.Logf("error", "cannot find reqItem for reqid=%s", resp.Control.RequestId)
 		return fmt.Errorf("cannot find reqItem for reqid=%s", resp.Control.RequestId)
 	}
 
@@ -426,7 +427,12 @@ func (ib *IntBFS) handleIncomingResponse(from peer.ID, resp *Response) (err erro
 	}
 
 	// store query message according to cached content.
-	ib.profiles[from].Insert(item.req, resp)
+	pro, ok := ib.profiles[from]
+	if !ok {
+		ib.log.Logf("error", "cannot find profile for peer %s", from.ShortString())
+		return fmt.Errorf("cannot find profile for peer %s", from.ShortString())
+	}
+	pro.Insert(item.req, resp)
 	// if it is rooted node, reply to user.
 	if item.req.Control.Requester == ib.wires.ID() {
 		item.finalHandler(context.TODO(), resp)
@@ -443,7 +449,12 @@ func (ib *IntBFS) handleIncomingResponse(from peer.ID, resp *Response) (err erro
 
 func (ib *IntBFS) handleIncomingHit(from peer.ID, req *Request, resp *Response) (err error) {
 	// store query message according to cached content.
-	ib.profiles[from].Insert(req, resp)
+	pro, ok := ib.profiles[from]
+	if !ok {
+		ib.log.Logf("error", "cannot find profile for peer %s", from.ShortString())
+		return fmt.Errorf("cannot find profile for peer %s", from.ShortString())
+	}
+	pro.Insert(req, resp)
 	return nil
 }
 
