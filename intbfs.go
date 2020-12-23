@@ -285,7 +285,7 @@ func (ib *IntBFS) handleIncomingMsg(from peer.ID, msg *pb.Msg) {
 	// dispatch msg type
 	switch msg.Type {
 	case pb.Msg_Request:
-		ib.handleIncomingRequest(context.TODO(), from, msg.Request, nil)
+		ib.handleIncomingRequest(from, msg.Request)
 	case pb.Msg_Response:
 		ib.handleIncomingResponse(from, msg.Response)
 	case pb.Msg_Hit:
@@ -299,7 +299,7 @@ func (ib *IntBFS) handleIncomingMsg(from peer.ID, msg *pb.Msg) {
 }
 
 func (ib *IntBFS) handlePublish(pub *PubReq) {
-	pub.errCh <- ib.handleIncomingRequest(
+	pub.errCh <- ib.handleRequest(
 		pub.po.RequestContext,
 		ib.wires.ID(),
 		pub.req,
@@ -331,7 +331,7 @@ func (ib *IntBFS) HandlePeerUp(p peer.ID) {
 	ib.peerUpCh <- p
 }
 
-func (ib *IntBFS) handleIncomingRequest(ctx context.Context, from peer.ID, req *Request, finalHandler FinalRespHandler) error {
+func (ib *IntBFS) handleRequest(ctx context.Context, from peer.ID, req *Request, finalHandler FinalRespHandler) error {
 	ib.log.Logf("debug", "handleIncomingRequest: from=%s, req=%+v", from, req)
 	reqID := ib.reqidfn(req)
 	if _, ok, _ := ib.cache.GetReqItem(reqID); ok {
@@ -417,6 +417,10 @@ func (ib *IntBFS) handleHit(from peer.ID, req *Request, intm *Intermediate) erro
 	// send back response
 	ib.sendResponse(from, resp)
 	return nil
+}
+
+func (ib *IntBFS) handleIncomingRequest(from peer.ID, req *Request) (err error) {
+	return ib.handleRequest(context.TODO(), from, req, nil)
 }
 
 func (ib *IntBFS) handleIncomingResponse(from peer.ID, resp *Response) (err error) {
