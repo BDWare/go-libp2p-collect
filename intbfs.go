@@ -451,8 +451,9 @@ func (ib *IntBFS) handleIncomingHit(from peer.ID, req *Request, resp *Response) 
 	// store query message according to cached content.
 	pro, ok := ib.profiles[from]
 	if !ok {
-		ib.log.Logf("error", "cannot find profile for peer %s", from.ShortString())
-		return fmt.Errorf("cannot find profile for peer %s", from.ShortString())
+		// It is possible that from is not in profiles, which will happen when hit reached faster than request.
+		ib.log.Logf("info", "handleIncomingHit: cannot find profile for peer %s", from.ShortString())
+		ib.profiles[from] = ib.profact()
 	}
 	pro.Insert(req, resp)
 	return nil
