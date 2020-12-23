@@ -299,6 +299,7 @@ func (ib *IntBFS) handleIncomingMsg(from peer.ID, msg *pb.Msg) {
 }
 
 func (ib *IntBFS) handlePublish(pub *PubReq) {
+	ib.log.Logf("debug", "handlePublish: req=%+v", pub.req)
 	pub.errCh <- ib.handleRequest(
 		pub.po.RequestContext,
 		ib.wires.ID(),
@@ -332,11 +333,11 @@ func (ib *IntBFS) HandlePeerUp(p peer.ID) {
 }
 
 func (ib *IntBFS) handleRequest(ctx context.Context, from peer.ID, req *Request, finalHandler FinalRespHandler) error {
-	ib.log.Logf("debug", "handleIncomingRequest: from=%s, req=%+v", from, req)
+
 	reqID := ib.reqidfn(req)
 	if _, ok, _ := ib.cache.GetReqItem(reqID); ok {
 		// msg has seen
-		ib.log.Logf("info", "handleIncomingRequest: have seen reqid=%s", reqID)
+		ib.log.Logf("info", "handleRequest: have seen reqid=%s", reqID)
 		return nil
 	}
 
@@ -420,6 +421,7 @@ func (ib *IntBFS) handleHit(from peer.ID, req *Request, intm *Intermediate) erro
 }
 
 func (ib *IntBFS) handleIncomingRequest(from peer.ID, req *Request) (err error) {
+	ib.log.Logf("debug", "handleIncomingRequest: from=%s, req=%+v", from, req)
 	return ib.handleRequest(context.TODO(), from, req, nil)
 }
 
