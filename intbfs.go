@@ -530,17 +530,6 @@ func (ib *IntBFS) ranks(from peer.ID, req *Request) []peer.ID {
 	return out
 }
 
-// ProfileFactory generates a Profile
-type ProfileFactory func() Profile
-
-// Profile stores query profiles
-type Profile interface {
-	//
-	Insert(req *Request, resp *Response)
-	//
-	Less(that Profile, req *Request) bool
-}
-
 type defaultProfile struct{}
 
 func (d *defaultProfile) Insert(req *Request, resp *Response) {

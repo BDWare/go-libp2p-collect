@@ -74,6 +74,17 @@ type WireListener interface {
 	HandlePeerDown(p peer.ID)
 }
 
+// ProfileFactory generates a Profile
+type ProfileFactory func() Profile
+
+// Profile stores query profiles
+type Profile interface {
+	//
+	Insert(req *Request, resp *Response)
+	//
+	Less(that Profile, req *Request) bool
+}
+
 /*===========================================================================*/
 
 // NewCollector creates PubSubCollector.
