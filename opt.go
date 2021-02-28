@@ -2,8 +2,8 @@ package collect
 
 import (
 	"context"
-	"crypto/sha512"
-	"encoding/hex"
+	"crypto/sha1"
+	"encoding/base64"
 	"fmt"
 
 	"github.com/bdware/go-libp2p-collect/pubsub"
@@ -65,21 +65,21 @@ func WithRequestIDGenerator(ridFn ReqIDFn) InitOpt {
 type ReqIDFn func(*Request) RequestID
 
 // DefaultReqIDFn returns default ReqIDGenerator.
-// SHA-512 hash function is called in it.
+// SHA-1 hash function is called in it.
 func DefaultReqIDFn(rq *Request) RequestID {
 	bin, err := rq.Marshal()
 	if err != nil {
 		return RequestID("")
 	}
-	h := sha512.New()
-	out := RequestID(hex.EncodeToString(h.Sum(bin)))
+	h := sha1.New()
+	out := RequestID(base64.StdEncoding.EncodeToString(h.Sum(bin)))
 	return out
 }
 
 // DefaultMsgIDFn should be used with DefaultMsgIDFn.
 func DefaultMsgIDFn(pmsg *pubsub.PbMessage) string {
-	h := sha512.New()
-	out := string(hex.EncodeToString(h.Sum(pmsg.Data)))
+	h := sha1.New()
+	out := string(base64.StdEncoding.EncodeToString(h.Sum(pmsg.Data)))
 	return out
 }
 
