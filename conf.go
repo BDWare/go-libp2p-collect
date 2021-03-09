@@ -43,6 +43,12 @@ type Conf struct {
 	// ResponseCacheSize .
 	// ResponseCache is used to deduplicate the response.
 	ResponseCacheSize int `json:"responseCacheSize"`
+	// Fanout .
+	Fanout int `json:"fanout"`
+	// RandomFanout .
+	RandomFanout int `json:"randomFanout"`
+	// MaxHitsToSend
+	MaxHitsToSend int `json:"maxHitsToSend"`
 }
 
 // MakeDefaultConf returns a default Conf instance
@@ -52,5 +58,8 @@ func MakeDefaultConf() Conf {
 		ProtocolPrefix:    "/psc",
 		RequestCacheSize:  512,
 		ResponseCacheSize: 1024,
+		Fanout:            3,
+		RandomFanout:      1,
+		MaxHitsToSend:     10,
 	}
 }

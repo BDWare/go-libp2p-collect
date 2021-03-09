@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"math/rand"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 
 	"github.com/bdware/go-libp2p-collect/pb"
-	"github.com/bdware/go-libp2p-collect/pubsub"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/protocol"
@@ -23,6 +23,7 @@ const (
 // We used a topic-defined overlay here.
 type IntBFSCollector struct {
 	rw     sync.RWMutex
+	conf   *Conf
 	host   host.Host
 	topics map[string]*IntBFS
 	hub    *TopicHub
@@ -36,7 +37,7 @@ func NewIntBFSCollector(h host.Host, opts ...InitOpt) (*IntBFSCollector, error) 
 	}
 	wires := initOpts.Wires
 	if wires == nil {
-		tw, err := pubsub.NewTopicWires(h)
+		tw, err := newTopicWiresAdapter(h)
 		if err != nil {
 			return nil, err
 		}
@@ -45,6 +46,7 @@ func NewIntBFSCollector(h host.Host, opts ...InitOpt) (*IntBFSCollector, error) 
 
 	ic := &IntBFSCollector{
 		rw:     sync.RWMutex{},
+		conf:   &initOpts.Conf,
 		topics: make(map[string]*IntBFS),
 		hub:    NewTopicHub(wires),
 		log:    initOpts.Logger,
@@ -77,6 +79,9 @@ func (ic *IntBFSCollector) Join(topic string, opts ...JoinOpt) (err error) {
 	intbfs, err := NewIntBFS(
 		wires,
 		&IntBFSOptions{
+			Fanout:         ic.conf.Fanout,
+			RandomFanout:   ic.conf.RandomFanout,
+			MaxHitsToSend:  ic.conf.MaxHitsToSend,
 			ProfileFactory: jo.ProfileFactory,
 			RequestHandler: jo.RequestHandler,
 			ReqIDFn:        DefaultReqIDFn,
@@ -131,10 +136,10 @@ func (ic *IntBFSCollector) Close() error {
 /*===========================================================================*/
 
 const (
-	k             = 5    // fanout
-	r             = 1    // random perturbation
-	msgBufferSize = 1024 // msg buffer size
-	cacheSize     = 1024 // request cache size
+	incomingBufferSize = 10240 // incoming message buffer size
+	outgoingBufferSize = 1024  // outgoing message buffer size
+	publishBufferSize  = 1024  // publish request buffer size
+	cacheSize          = 1024  // request cache size
 )
 
 type Msg struct {
@@ -171,6 +176,7 @@ type IntBFS struct {
 	reqhndl  RequestHandler
 	seqno    uint64
 	cache    *requestWorkerPool
+	opts     *IntBFSOptions
 	//
 	incomingCh  chan *Msg
 	outgoingCh  chan *Msg
@@ -200,14 +206,15 @@ func NewIntBFS(wires Wires, opts *IntBFSOptions) (*IntBFS, error) {
 		reqhndl:  opts.RequestHandler,
 		seqno:    rand.Uint64(),
 		cache:    cache,
+		opts:     opts,
 
-		incomingCh:  make(chan *Msg, msgBufferSize),
-		outgoingCh:  make(chan *Msg),
-		peerUpCh:    make(chan peer.ID),
-		peerDownCh:  make(chan peer.ID),
-		reqHandleCh: make(chan *Request),
-		finalRespCh: make(chan *Response),
-		publishCh:   make(chan *PubReq),
+		incomingCh:  make(chan *Msg, incomingBufferSize),
+		outgoingCh:  make(chan *Msg, outgoingBufferSize),
+		peerUpCh:    make(chan peer.ID, 1),
+		peerDownCh:  make(chan peer.ID, 1),
+		reqHandleCh: make(chan *Request, 1),
+		finalRespCh: make(chan *Response, 1),
+		publishCh:   make(chan *PubReq, publishBufferSize),
 	}
 	wires.SetListener(out)
 	wires.SetMsgHandler(out.handleMsgData)
@@ -216,6 +223,7 @@ func NewIntBFS(wires Wires, opts *IntBFSOptions) (*IntBFS, error) {
 }
 
 func (ib *IntBFS) Publish(data []byte, opts ...PubOpt) error {
+
 	po, err := NewPublishOptions(opts)
 	if err != nil {
 		return err
@@ -235,12 +243,14 @@ func (ib *IntBFS) Publish(data []byte, opts ...PubOpt) error {
 	pubReq := &PubReq{
 		req:   req,
 		po:    po,
-		errCh: make(chan error),
+		errCh: make(chan error, 1),
 	}
-
+	ib.log.Logf("debug", "begin send pubreq: req.seqno=%d", req.Control.Seqno)
 	ib.publishCh <- pubReq
-
-	return <-pubReq.errCh
+	ib.log.Logf("debug", "wait for err: req.seqno=%d", req.Control.Seqno)
+	err = <-pubReq.errCh
+	ib.log.Logf("debug", "err return: req.seqno=%d", req.Control.Seqno)
+	return err
 
 	// return ib.handleIncomingRequest(ib.wires.ID(), req, po.FinalRespHandle)
 }
@@ -299,7 +309,7 @@ func (ib *IntBFS) handleIncomingMsg(from peer.ID, msg *pb.Msg) {
 }
 
 func (ib *IntBFS) handlePublish(pub *PubReq) {
-	ib.log.Logf("debug", "handlePublish: req=%+v", pub.req)
+	ib.log.Logf("info", "handlePublish: req.seqno=%d", pub.req.Control.Seqno)
 	pub.errCh <- ib.handleRequest(
 		pub.po.RequestContext,
 		ib.wires.ID(),
@@ -318,10 +328,16 @@ func (ib *IntBFS) handleMsgData(from peer.ID, data []byte) {
 		ib.log.Logf("info", "msg unmarshal error:%v", err)
 		return
 	}
-	ib.incomingCh <- &Msg{
+	incoming := &Msg{
 		peer: from,
 		Msg:  m,
 	}
+	select {
+	case ib.incomingCh <- incoming:
+	default:
+		ib.log.Logf("warn", "incoming message full, dropping msg from %s", from.ShortString())
+	}
+
 }
 
 func (ib *IntBFS) HandlePeerDown(p peer.ID) {
@@ -333,38 +349,47 @@ func (ib *IntBFS) HandlePeerUp(p peer.ID) {
 }
 
 func (ib *IntBFS) handleRequest(ctx context.Context, from peer.ID, req *Request, finalHandler FinalRespHandler) error {
-
+	ib.log.Logf("debug", "begin get req id")
 	reqID := ib.reqidfn(req)
 	if _, ok, _ := ib.cache.GetReqItem(reqID); ok {
 		// msg has seen
 		ib.log.Logf("info", "handleRequest: have seen reqid=%s", reqID)
 		return nil
 	}
-
+	ib.log.Logf("debug", "begin add req item")
 	// insert request in cache
 	ib.cache.AddReqItem(ctx, reqID, &reqItem{
 		finalHandler: finalHandler,
 		topic:        ib.topic,
 		req:          req,
 	})
+	ib.log.Logf("debug", "add req item done")
+	ib.log.Logf("debug", "begin req handle")
 	// call request handler
-	m := ib.reqhndl(context.TODO(), req)
+	m := ib.reqhndl(ctx, req)
+	ib.log.Logf("debug", "req handle done")
 
 	// check hit
 	if m != nil && m.Hit {
+		ib.log.Logf("debug", "begin handle hit")
 		err := ib.handleHit(from, req, m)
 		if err != nil {
 			return err
 		}
+		ib.log.Logf("debug", "hit handle done")
 	}
-
-	return ib.handleForward(from, req)
+	ib.log.Logf("debug", "begin handle forward")
+	err := ib.handleForward(from, req)
+	ib.log.Logf("debug", "handle forward done")
+	return err
 }
 
 func (ib *IntBFS) handleForward(from peer.ID, req *Request) error {
 
 	// find k highest peerProfile peers
 	// then find r random peers not within the previous k-set
+	k := ib.opts.Fanout
+	r := ib.opts.RandomFanout
 	peers := ib.ranks(from, req)
 	bound := k + r
 	if len(peers) <= bound {
@@ -380,9 +405,18 @@ func (ib *IntBFS) handleForward(from peer.ID, req *Request) error {
 	ib.log.Logf("debug", "handleForward: tosend=%v", tosend)
 	for _, to := range tosend {
 		if to == ib.wires.ID() {
-			ib.log.Logf("warn", "handleForward:cannot send to myself")
+			ib.log.Logf("info", "handleForward:cannot send to myself")
 			continue
 		}
+		if to == req.Control.Requester {
+			ib.log.Logf("info", "handleForward:don't send to requester")
+			continue
+		}
+		if to == req.Control.Sender {
+			ib.log.Logf("info", "handleForward:don't send to sender")
+			continue
+		}
+
 		go func(to peer.ID, req *Request) {
 			if err := ib.sendRequest(to, req); err != nil {
 				ib.log.Logf("error", "handleForward: %v", err)
@@ -409,7 +443,14 @@ func (ib *IntBFS) handleHit(from peer.ID, req *Request, intm *Intermediate) erro
 
 	// no need to insert profile
 	// send control message to neighbors, tell them that you're hit.
-	for _, peer := range ib.wires.Neighbors() {
+	neighs := ib.wires.Neighbors()
+	if len(neighs) > ib.opts.MaxHitsToSend {
+		rand.Shuffle(len(neighs), func(i, j int) {
+			neighs[i], neighs[j] = neighs[j], neighs[i]
+		})
+		neighs = neighs[:ib.opts.MaxHitsToSend]
+	}
+	for _, peer := range neighs {
 		ib.sendHit(peer, req, resp)
 	}
 
@@ -422,6 +463,11 @@ func (ib *IntBFS) handleHit(from peer.ID, req *Request, intm *Intermediate) erro
 
 func (ib *IntBFS) handleIncomingRequest(from peer.ID, req *Request) (err error) {
 	ib.log.Logf("debug", "handleIncomingRequest: from=%s, req=%+v", from, req)
+	if req.Control.Requester == ib.wires.ID() {
+		// receives self published request, drop it
+		ib.log.Logf("info", "handleIncomingRequest: receive self published request, dropping")
+		return fmt.Errorf("self published request")
+	}
 	return ib.handleRequest(context.TODO(), from, req, nil)
 }
 
@@ -452,7 +498,8 @@ func (ib *IntBFS) handleIncomingResponse(from peer.ID, resp *Response) (err erro
 			)
 			return fmt.Errorf("nil finalHandler")
 		}
-		item.finalHandler(context.TODO(), resp)
+		ib.log.Logf("debug", "begin final handle reqid=%s", resp.Control.RequestId)
+		go item.finalHandler(context.TODO(), resp)
 		return nil
 	}
 	// reply to father node.
@@ -470,7 +517,8 @@ func (ib *IntBFS) handleIncomingHit(from peer.ID, req *Request, resp *Response) 
 	if !ok {
 		// It is possible that from is not in profiles, which will happen when hit reached faster than request.
 		ib.log.Logf("info", "handleIncomingHit: cannot find profile for peer %s", from.ShortString())
-		ib.profiles[from] = ib.profact()
+		pro = ib.profact()
+		ib.profiles[from] = pro
 	}
 	pro.Insert(req, resp)
 	return nil
@@ -502,10 +550,16 @@ func (ib *IntBFS) sendMsg(to peer.ID, mtype pb.Msg_MsgType, req *Request, resp *
 
 	if ib.wires.ID() == to {
 		// local msg
-		ib.incomingCh <- &Msg{
+		localIncoming := &Msg{
 			peer: ib.wires.ID(),
 			Msg:  msg,
 		}
+		select {
+		case ib.incomingCh <- localIncoming:
+		default:
+			ib.log.Logf("warn", "incoming message full, dropping msg from %s", to.ShortString())
+		}
+
 		return nil
 	}
 
@@ -524,6 +578,18 @@ func (ib *IntBFS) sendMsg(to peer.ID, mtype pb.Msg_MsgType, req *Request, resp *
 type profileElement struct {
 	p   peer.ID
 	pro Profile
+}
+
+type profileElements []profileElement
+
+func (p profileElements) String() string {
+	var buf strings.Builder
+	buf.WriteString("[")
+	for i := range p {
+		buf.WriteString(fmt.Sprintf("{peers:%s, profile:%v},", p[i].p.ShortString(), p[i].pro))
+	}
+	buf.WriteString("]")
+	return buf.String()
 }
 
 func (ib *IntBFS) ranks(from peer.ID, req *Request) []peer.ID {
@@ -553,7 +619,8 @@ type defaultProfile struct{}
 func (d *defaultProfile) Insert(req *Request, resp *Response) {
 }
 func (d *defaultProfile) Less(that Profile, req *Request) bool {
-	return true
+	// random true or false
+	return (rand.Int() & 1) == 1
 }
 
 /*===========================================================================*/
@@ -562,6 +629,9 @@ func (d *defaultProfile) Less(that Profile, req *Request) bool {
 
 // IntBFSOptions .
 type IntBFSOptions struct {
+	Fanout        int
+	RandomFanout  int
+	MaxHitsToSend int
 	ProfileFactory
 	RequestHandler
 	ReqIDFn
@@ -573,7 +643,11 @@ var defaultProfileFactory = func() Profile { return &defaultProfile{} }
 
 // MakeDefaultIntBFSOptions .
 func MakeDefaultIntBFSOptions() *IntBFSOptions {
+	c := MakeDefaultConf()
 	return &IntBFSOptions{
+		Fanout:         c.Fanout,
+		RandomFanout:   c.RandomFanout,
+		MaxHitsToSend:  c.MaxHitsToSend,
 		ProfileFactory: defaultProfileFactory,
 		RequestHandler: defaultRequestHandler,
 		ReqIDFn:        DefaultReqIDFn,
@@ -585,6 +659,9 @@ func MakeDefaultIntBFSOptions() *IntBFSOptions {
 func checkIntBFSOpitons(opts *IntBFSOptions) error {
 	if opts == nil {
 		opts = MakeDefaultIntBFSOptions()
+	}
+	if opts.Fanout < 0 {
+		return fmt.Errorf("fanout is less than 0")
 	}
 	if opts.ProfileFactory == nil {
 		return fmt.Errorf("nil profile factory")

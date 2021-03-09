@@ -7,6 +7,7 @@ require (
 	github.com/davidlazar/go-crypto v0.0.0-20190912175916-7055855a373f // indirect
 	github.com/gogo/protobuf v1.3.1
 	github.com/hashicorp/golang-lru v0.5.4
+	github.com/huiscool/topic-wires v0.0.0-20210302154211-b02d5dcada58
 	github.com/libp2p/go-libp2p v0.12.0
 	github.com/libp2p/go-libp2p-core v0.7.0
 	github.com/libp2p/go-msgio v0.0.6

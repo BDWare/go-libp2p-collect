@@ -3,7 +3,11 @@ package collect
 import (
 	"sync"
 
+	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p-core/protocol"
+
+	twires "github.com/huiscool/topic-wires"
 )
 
 type TopicHub struct {
@@ -160,3 +164,52 @@ type defaultWireNotifiee struct{}
 
 func (d *defaultWireNotifiee) HandlePeerUp(p peer.ID)   {}
 func (d *defaultWireNotifiee) HandlePeerDown(p peer.ID) {}
+
+var (
+	topicWiresMsgProtocolID = protocol.ID("/topic-wires-msg/1.0.0")
+)
+
+type topicWiresAdapter struct {
+	*twires.TopicWires
+	h host.Host
+}
+
+func newTopicWiresAdapter(h host.Host) (TopicWires, error) {
+	tw, err := twires.NewTopicWires(h)
+	if err != nil {
+		return nil, err
+	}
+	return &topicWiresAdapter{
+		TopicWires: tw,
+		h:          h,
+	}, nil
+}
+
+func (a *topicWiresAdapter) ID() peer.ID {
+	return a.h.ID()
+}
+
+func (a *topicWiresAdapter) SetListener(twn TopicWireListener) {
+	a.TopicWires.SetNotifiee(&twires.NotifAdapter{
+		HandleUp: func(p peer.ID, topic string) {
+			twn.HandlePeerUp(p, topic)
+		},
+		HandleDown: func(p peer.ID, topic string) {
+			twn.HandlePeerDown(p, topic)
+		},
+	})
+}
+
+func (a *topicWiresAdapter) SendMsg(topic string, to peer.ID, data []byte) error {
+	return a.TopicWires.SendTopicMsg(topic, to, data)
+}
+
+func (a *topicWiresAdapter) SetTopicMsgHandler(th TopicMsgHandler) {
+	a.TopicWires.SetTopicMsgHandler(
+		func(topic string, from peer.ID, data []byte) {
+			th(topic, from, data)
+		},
+	)
+}
+
+var _ TopicWires = (*topicWiresAdapter)(nil)
