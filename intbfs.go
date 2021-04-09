@@ -140,6 +140,7 @@ const (
 	outgoingBufferSize = 1024  // outgoing message buffer size
 	publishBufferSize  = 1024  // publish request buffer size
 	cacheSize          = 1024  // request cache size
+	resultBufferSize   = 1024  // request handle result buffer size
 )
 
 type Msg struct {
@@ -153,9 +154,9 @@ type PubReq struct {
 	errCh chan error
 }
 
-type EvalReqReq struct {
-	req    *Request
-	intmCh chan *Intermediate
+type RequestResult struct {
+	req *Request
+	itm *Intermediate
 }
 
 // IntBFS don't care about topic.
@@ -178,13 +179,13 @@ type IntBFS struct {
 	cache    *requestWorkerPool
 	opts     *IntBFSOptions
 	//
-	incomingCh  chan *Msg
-	outgoingCh  chan *Msg
-	peerUpCh    chan peer.ID
-	peerDownCh  chan peer.ID
-	reqHandleCh chan *Request
-	finalRespCh chan *Response
-	publishCh   chan *PubReq
+	incomingCh      chan *Msg
+	outgoingCh      chan *Msg
+	peerUpCh        chan peer.ID
+	peerDownCh      chan peer.ID
+	publishCh       chan *PubReq
+	requestResultCh chan *RequestResult
+	closeCh         chan struct{}
 }
 
 func NewIntBFS(wires Wires, opts *IntBFSOptions) (*IntBFS, error) {
@@ -208,13 +209,13 @@ func NewIntBFS(wires Wires, opts *IntBFSOptions) (*IntBFS, error) {
 		cache:    cache,
 		opts:     opts,
 
-		incomingCh:  make(chan *Msg, incomingBufferSize),
-		outgoingCh:  make(chan *Msg, outgoingBufferSize),
-		peerUpCh:    make(chan peer.ID, 1),
-		peerDownCh:  make(chan peer.ID, 1),
-		reqHandleCh: make(chan *Request, 1),
-		finalRespCh: make(chan *Response, 1),
-		publishCh:   make(chan *PubReq, publishBufferSize),
+		incomingCh:      make(chan *Msg, incomingBufferSize),
+		outgoingCh:      make(chan *Msg, outgoingBufferSize),
+		peerUpCh:        make(chan peer.ID, 1),
+		peerDownCh:      make(chan peer.ID, 1),
+		publishCh:       make(chan *PubReq, publishBufferSize),
+		requestResultCh: make(chan *RequestResult, resultBufferSize),
+		closeCh:         make(chan struct{}),
 	}
 	wires.SetListener(out)
 	wires.SetMsgHandler(out.handleMsgData)
@@ -256,7 +257,7 @@ func (ib *IntBFS) Publish(data []byte, opts ...PubOpt) error {
 }
 
 func (ib *IntBFS) Close() error {
-	// as wires don't have leave method, just leave it.
+	close(ib.closeCh)
 	return nil
 }
 
@@ -265,6 +266,7 @@ func (ib *IntBFS) Close() error {
 func (ib *IntBFS) loop(ctx context.Context) {
 	for {
 		select {
+		case <-ib.closeCh:
 		case <-ctx.Done():
 			return
 		case msg := <-ib.incomingCh:
@@ -275,6 +277,8 @@ func (ib *IntBFS) loop(ctx context.Context) {
 			ib.handlePeerDown(peer)
 		case pub := <-ib.publishCh:
 			ib.handlePublish(pub)
+		case res := <-ib.requestResultCh:
+			ib.handleRequestResult(res)
 		}
 	}
 }
@@ -316,6 +320,22 @@ func (ib *IntBFS) handlePublish(pub *PubReq) {
 		pub.req,
 		pub.po.FinalRespHandle,
 	)
+}
+
+func (ib *IntBFS) handleRequestResult(res *RequestResult) {
+	ib.log.Logf("info", "handleRequestResult")
+	req := res.req
+	from := req.Control.Sender
+	m := res.itm
+	// check hit
+	if m != nil && m.Hit {
+		err := ib.handleHit(from, req, m)
+		if err != nil {
+			ib.log.Logf("error", "handleRequestResult: err=%v", err)
+			return
+		}
+	}
+
 }
 
 /*===========================================================================*/
@@ -364,24 +384,29 @@ func (ib *IntBFS) handleRequest(ctx context.Context, from peer.ID, req *Request,
 		req:          req,
 	})
 	ib.log.Logf("debug", "add req item done")
-	ib.log.Logf("debug", "begin req handle")
 	// call request handler
-	m := ib.reqhndl(ctx, req)
-	ib.log.Logf("debug", "req handle done")
+	go ib.handleRequestAsync(ctx, req)
 
-	// check hit
-	if m != nil && m.Hit {
-		ib.log.Logf("debug", "begin handle hit")
-		err := ib.handleHit(from, req, m)
-		if err != nil {
-			return err
-		}
-		ib.log.Logf("debug", "hit handle done")
-	}
-	ib.log.Logf("debug", "begin handle forward")
 	err := ib.handleForward(from, req)
-	ib.log.Logf("debug", "handle forward done")
-	return err
+	if err != nil {
+		ib.log.Logf("error", "handleRequestResult: handleForword: err=%v", err)
+		return err
+	}
+
+	return nil
+}
+
+func (ib *IntBFS) handleRequestAsync(ctx context.Context, req *Request) {
+	itm := ib.reqhndl(ctx, req)
+	res := &RequestResult{
+		req: req,
+		itm: itm,
+	}
+	select {
+	case ib.requestResultCh <- res:
+	case <-ib.closeCh:
+	}
+
 }
 
 func (ib *IntBFS) handleForward(from peer.ID, req *Request) error {
@@ -451,14 +476,20 @@ func (ib *IntBFS) handleHit(from peer.ID, req *Request, intm *Intermediate) erro
 		neighs = neighs[:ib.opts.MaxHitsToSend]
 	}
 	for _, peer := range neighs {
-		ib.sendHit(peer, req, resp)
+		go ib.sendHit(peer, req, resp)
 	}
 
 	ib.log.Logf("info", "%s: handleHit:from=%s", ib.wires.ID().ShortString(), from.ShortString())
 
-	// send back response
-	ib.sendResponse(from, resp)
-	return nil
+	var err error
+	if from == ib.wires.ID() {
+		err = ib.handleLocalResponse(resp)
+	} else {
+		// send back response
+		err = ib.sendResponse(from, resp)
+	}
+	return err
+
 }
 
 func (ib *IntBFS) handleIncomingRequest(from peer.ID, req *Request) (err error) {
@@ -469,6 +500,23 @@ func (ib *IntBFS) handleIncomingRequest(from peer.ID, req *Request) (err error) 
 		return fmt.Errorf("self published request")
 	}
 	return ib.handleRequest(context.TODO(), from, req, nil)
+}
+
+func (ib *IntBFS) handleLocalResponse(resp *Response) (err error) {
+	item, ok, _ := ib.cache.GetReqItem(resp.Control.RequestId)
+	if !ok {
+		ib.log.Logf("info", "handleLocalResponse: cannot find reqItem for reqid=%s", resp.Control.RequestId)
+		return nil
+	}
+	if item.finalHandler == nil {
+		ib.log.Logf("error", "handleLocalResponse: nil finalHandler, reqid=%s",
+			resp.Control.RequestId,
+		)
+		return fmt.Errorf("nil finalHandler")
+	}
+	ib.log.Logf("debug", "begin final handle reqid=%s", resp.Control.RequestId)
+	go item.finalHandler(context.TODO(), resp)
+	return nil
 }
 
 func (ib *IntBFS) handleIncomingResponse(from peer.ID, resp *Response) (err error) {
